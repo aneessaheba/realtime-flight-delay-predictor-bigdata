@@ -150,7 +150,7 @@ services:
 
   # ─────────────────────── Spark Master ────────────────────────────
   spark-master:
-    image: bitnami/spark:3.5
+    image: bitnami/spark:latest
     container_name: spark-master
     networks:
       - flight-net
@@ -182,7 +182,7 @@ services:
 
   # ─────────────────────── Spark Worker 1 ──────────────────────────
   spark-worker-1:
-    image: bitnami/spark:3.5
+    image: bitnami/spark:latest
     container_name: spark-worker-1
     networks:
       - flight-net
@@ -214,7 +214,7 @@ services:
 
   # ─────────────────────── Spark Worker 2 ──────────────────────────
   spark-worker-2:
-    image: bitnami/spark:3.5
+    image: bitnami/spark:latest
     container_name: spark-worker-2
     networks:
       - flight-net

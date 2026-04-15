@@ -8,7 +8,7 @@ partitioned by YEAR and MONTH.
 Usage:
     spark-submit src/ingestion/ingest_bts_to_hdfs.py \
         --input-path /data/raw/bts \
-        --hdfs-path hdfs://namenode:9000/data/flights \
+        --hdfs-path hdfs://namenode:9000/data/processed/bts_parquet \
         --years 2018 2019 2020 2021 2022 2023
 """
 
@@ -25,8 +25,6 @@ from pyspark.sql.types import (
     DoubleType,
     IntegerType,
     StringType,
-    StructField,
-    StructType,
 )
 
 logging.basicConfig(
@@ -35,8 +33,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger("ingest_bts_to_hdfs")
-
-# ─── Column definitions ───────────────────────────────────────────────────────
 
 # All columns we care about from the raw BTS CSV
 SELECTED_COLUMNS = [
@@ -82,7 +78,7 @@ COLUMN_TYPES = {
     "LATE_AIRCRAFT_DELAY": DoubleType(),
 }
 
-# Delay breakdown columns that may be null for on-time flights – fill with 0
+# Delay breakdown columns that may be null for on-time flights, fill with 0
 NULLABLE_DELAY_COLS = [
     "CARRIER_DELAY",
     "WEATHER_DELAY",
@@ -95,9 +91,6 @@ NULLABLE_DELAY_COLS = [
 ARR_DELAY_THRESHOLD = 15.0  # minutes
 
 
-# ─── Helper functions ─────────────────────────────────────────────────────────
-
-
 def build_spark_session(app_name: str = "BTS_Ingestion") -> SparkSession:
     """Create and return a SparkSession configured for HDFS access."""
     spark = (
@@ -106,6 +99,10 @@ def build_spark_session(app_name: str = "BTS_Ingestion") -> SparkSession:
         .config("spark.sql.shuffle.partitions", "200")
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
         .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")
+        .config("spark.hadoop.hadoop.security.authentication", "simple")
+        .config("spark.hadoop.hadoop.security.authorization", "false")
+        .config("spark.hadoop.fs.viewfs.impl", "org.apache.hadoop.fs.LocalFileSystem")
+        .config("spark.hadoop.fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
         .getOrCreate()
     )
     spark.sparkContext.setLogLevel("WARN")
@@ -115,8 +112,7 @@ def build_spark_session(app_name: str = "BTS_Ingestion") -> SparkSession:
 def resolve_csv_paths(input_path: str, years: List[int]) -> List[str]:
     """
     Return a list of glob patterns covering all CSV files for the requested
-    years. Supports both flat directories (all CSVs in one folder) and
-    year-partitioned sub-directories.
+    years. Supports both flat directories and year-partitioned sub-directories.
     """
     paths = []
     for year in years:
@@ -125,25 +121,48 @@ def resolve_csv_paths(input_path: str, years: List[int]) -> List[str]:
             paths.append(os.path.join(year_dir, "*.csv"))
             logger.info("Adding year directory: %s", year_dir)
         else:
-            # Fall back to flat layout – filter by year after reading
             paths.append(os.path.join(input_path, "*.csv"))
             logger.info(
-                "Year directory not found for %d; will use flat path and filter.", year
+                "Year directory not found for %d; will use flat path and filter.",
+                year,
             )
-            break  # Only need to add the flat path once
+            break
     return list(set(paths))
 
 
 def read_raw_csv(spark: SparkSession, csv_paths: List[str]):
-    """Read raw BTS CSV files into a DataFrame."""
+    """Read raw BTS CSV files into a DataFrame and normalize column names."""
     logger.info("Reading CSV files from: %s", csv_paths)
+
     df = (
         spark.read.option("header", "true")
-        .option("inferSchema", "false")  # All columns as strings initially
+        .option("inferSchema", "false")
         .option("nullValue", "")
         .option("mode", "PERMISSIVE")
         .csv(csv_paths)
     )
+
+    df = (
+        df.withColumnRenamed("Year", "YEAR")
+        .withColumnRenamed("Month", "MONTH")
+        .withColumnRenamed("DayofMonth", "DAY_OF_MONTH")
+        .withColumnRenamed("DayOfWeek", "DAY_OF_WEEK")
+        .withColumnRenamed("Reporting_Airline", "OP_UNIQUE_CARRIER")
+        .withColumnRenamed("Origin", "ORIGIN")
+        .withColumnRenamed("Dest", "DEST")
+        .withColumnRenamed("CRSDepTime", "CRS_DEP_TIME")
+        .withColumnRenamed("DepDelay", "DEP_DELAY")
+        .withColumnRenamed("CRSArrTime", "CRS_ARR_TIME")
+        .withColumnRenamed("ArrDelay", "ARR_DELAY")
+        .withColumnRenamed("CRSElapsedTime", "CRS_ELAPSED_TIME")
+        .withColumnRenamed("Distance", "DISTANCE")
+        .withColumnRenamed("CarrierDelay", "CARRIER_DELAY")
+        .withColumnRenamed("WeatherDelay", "WEATHER_DELAY")
+        .withColumnRenamed("NASDelay", "NAS_DELAY")
+        .withColumnRenamed("SecurityDelay", "SECURITY_DELAY")
+        .withColumnRenamed("LateAircraftDelay", "LATE_AIRCRAFT_DELAY")
+    )
+
     logger.info("Raw schema has %d columns.", len(df.columns))
     return df
 
@@ -153,13 +172,11 @@ def clean_and_transform(df, years: List[int]):
     Select relevant columns, cast types, fill nulls, create label column,
     and filter to requested years.
     """
-    # Keep only the columns that exist in this dataset
     available = set(df.columns)
     missing = [c for c in SELECTED_COLUMNS if c not in available]
     if missing:
         logger.warning(
-            "The following columns are missing from the source data and will be "
-            "filled with NULL: %s",
+            "The following columns are missing from the source data and will be filled with NULL: %s",
             missing,
         )
         for col_name in missing:
@@ -167,11 +184,9 @@ def clean_and_transform(df, years: List[int]):
 
     df = df.select(SELECTED_COLUMNS)
 
-    # Cast each column to its target type
     for col_name, col_type in COLUMN_TYPES.items():
         df = df.withColumn(col_name, F.col(col_name).cast(col_type))
 
-    # Drop rows where ARR_DELAY is null (cancelled / diverted flights)
     before_count = df.count()
     df = df.filter(F.col("ARR_DELAY").isNotNull())
     after_count = df.count()
@@ -182,26 +197,23 @@ def clean_and_transform(df, years: List[int]):
         after_count,
     )
 
-    # Fill nullable delay breakdown columns with 0 (on-time flights have no delay)
     fill_map = {c: 0.0 for c in NULLABLE_DELAY_COLS}
     df = df.fillna(fill_map)
 
-    # Drop rows with null in critical feature columns
     critical_cols = ["DAY_OF_WEEK", "ORIGIN", "DEST", "CRS_DEP_TIME", "DISTANCE"]
     df = df.dropna(subset=critical_cols)
 
-    # Filter to requested years
     if years:
         df = df.filter(F.col("YEAR").isin(years))
         logger.info("Filtered to years %s. Row count: %d", years, df.count())
 
-    # Binary label: 1 if arrival delay > 15 minutes, else 0
     df = df.withColumn(
         "label",
-        F.when(F.col("ARR_DELAY") > ARR_DELAY_THRESHOLD, 1).otherwise(0).cast(IntegerType()),
+        F.when(F.col("ARR_DELAY") > ARR_DELAY_THRESHOLD, 1)
+        .otherwise(0)
+        .cast(IntegerType()),
     )
 
-    # Repartition to balance files on HDFS: ~500k rows per partition
     total_rows = df.count()
     num_partitions = max(4, int(total_rows / 500_000) + 1)
     df = df.repartition(num_partitions, "YEAR", "MONTH")
@@ -245,9 +257,6 @@ def print_data_summary(df) -> None:
     logger.info("=" * 60)
 
 
-# ─── Entry point ──────────────────────────────────────────────────────────────
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ingest BTS On-Time Performance CSV data into HDFS as Parquet."
@@ -266,8 +275,8 @@ def parse_args() -> argparse.Namespace:
         "--years",
         nargs="+",
         type=int,
-        default=list(range(2018, 2025)),
-        help="Years to ingest (default: 2018-2024).",
+        default=list(range(2018, 2024)),
+        help="Years to ingest (default: 2018-2023).",
     )
     return parser.parse_args()
 
