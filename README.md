@@ -83,3 +83,147 @@ hdfs dfs -ls /data/processed/bts_parquet
 To inspect one year in order:
 
 hdfs dfs -ls /data/processed/bts_parquet/YEAR=2018 | sort -V
+
+## Batch feature engineering and EDA pipeline
+
+This part of the project handles the batch preprocessing stage. It reads the ingested Parquet dataset from HDFS, performs additional cleaning and feature engineering with PySpark, and writes an ML-ready dataset back to HDFS. It also generates EDA summaries for data validation and reporting.
+
+Input data pipeline
+
+This stage assumes the historical ingestion step has already completed and the Parquet dataset is already available in HDFS.
+
+It reads:
+- historical flight data in Parquet format
+- partitioned by year and month
+- from the ingestion output directory
+
+## Feature engineering command
+
+Run this inside the Spark container.
+
+To enter the Spark container:
+
+docker exec -it spark-master bash
+
+Then run:
+
+/opt/spark/bin/spark-submit
+--master spark://spark-master:7077
+src/training/prepare_features.py
+--input hdfs://hdfs-namenode:9000/user/spark/data/flights_raw
+--cleaned-output hdfs://hdfs-namenode:9000/user/spark/processed/cleaned
+--featured-output hdfs://hdfs-namenode:9000/user/spark/processed/featured
+--pipeline-model-output hdfs://hdfs-namenode:9000/user/spark/models/preprocessing_pipeline
+
+## Run EDA
+
+After feature engineering completes, run:
+
+/opt/spark/bin/spark-submit
+--master spark://spark-master:7077
+src/training/eda_report.py
+--input hdfs://hdfs-namenode:9000/user/spark/processed/cleaned
+--output hdfs://hdfs-namenode:9000/user/spark/reports/eda
+
+## What the feature engineering script does
+
+The script:
+- reads Parquet data from HDFS
+- filters out invalid records such as cancelled flights or rows with missing arrival delay
+- creates a binary target where arrival delay greater than 15 minutes is treated as delayed
+- generates time-based features such as departure hour and scheduled arrival hour
+- generates route-based features from origin and destination
+- handles missing values
+- encodes categorical columns using StringIndexer and OneHotEncoder
+- assembles all features into a single vector column
+- saves a reusable Spark ML preprocessing pipeline
+- writes cleaned and feature-engineered datasets in Parquet format
+
+## What the EDA script does
+
+The script:
+- reads the cleaned dataset from HDFS
+- computes summary statistics
+- reports label distribution
+- reports missing values
+- generates grouped summaries such as delay rate by carrier, airport, month, day of week, and departure hour
+- writes the EDA outputs to HDFS for inspection
+
+## Output location
+
+The cleaned dataset is stored in HDFS at:
+
+/user/spark/processed/cleaned
+
+The feature-engineered dataset is stored in HDFS at:
+
+/user/spark/processed/featured
+
+The preprocessing pipeline is stored in HDFS at:
+
+/user/spark/models/preprocessing_pipeline
+
+The EDA reports are stored in HDFS at:
+
+/user/spark/reports/eda
+
+## Output structure
+
+The cleaned and feature-engineered datasets are stored in Parquet format.
+
+The final structure looks like this:
+
+/user/spark/processed/cleaned/YEAR=2018 through YEAR=2023
+/user/spark/processed/featured/YEAR=2018 through YEAR=2023
+
+Each record in the feature-engineered dataset includes:
+- label
+- features
+
+## HDFS verification
+
+To enter the HDFS container:
+
+docker exec -it hdfs-namenode bash
+
+To list the processed output:
+
+hdfs dfs -ls /user/spark/processed
+
+To inspect the cleaned dataset:
+
+hdfs dfs -ls /user/spark/processed/cleaned
+
+To inspect the feature-engineered dataset:
+
+hdfs dfs -ls /user/spark/processed/featured
+
+To inspect the preprocessing pipeline:
+
+hdfs dfs -ls /user/spark/models/preprocessing_pipeline
+
+To inspect the EDA output:
+
+hdfs dfs -ls /user/spark/reports/eda
+
+## Final dataset verification
+
+To enter the Spark container:
+
+docker exec -it spark-master bash
+
+Then start PySpark:
+
+/opt/spark/bin/pyspark
+
+Run the following:
+
+df = spark.read.parquet("hdfs://hdfs-namenode:9000/user/spark/processed/featured")
+df.select("label", "features").show(5)
+df.groupBy("label").count().show()
+
+## Notes
+- The feature pipeline should read only the raw ingested dataset and not a folder that also contains processed outputs
+- Processed outputs should be stored separately from the raw ingestion directory
+- The output directories are overwritten on each run
+- This stage produces the final ML-ready dataset used for model training
