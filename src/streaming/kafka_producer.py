@@ -35,32 +35,32 @@ logger = logging.getLogger("kafka_producer")
 # ─── Column definitions ───────────────────────────────────────────────────────
 
 FEATURE_COLUMNS = [
-    "YEAR",
-    "MONTH",
-    "DAY_OF_MONTH",
-    "DAY_OF_WEEK",
-    "OP_UNIQUE_CARRIER",
-    "ORIGIN",
-    "DEST",
-    "CRS_DEP_TIME",
-    "DEP_DELAY",
-    "CRS_ARR_TIME",
-    "ARR_DELAY",
-    "CRS_ELAPSED_TIME",
-    "DISTANCE",
-    "CARRIER_DELAY",
-    "WEATHER_DELAY",
-    "NAS_DELAY",
-    "SECURITY_DELAY",
-    "LATE_AIRCRAFT_DELAY",
+    "Year",
+    "Month",
+    "DayofMonth",
+    "DayOfWeek",
+    "Reporting_Airline",
+    "Origin",
+    "Dest",
+    "CRSDepTime",
+    "DepDelay",
+    "CRSArrTime",
+    "ArrDelay",
+    "CRSElapsedTime",
+    "Distance",
+    "CarrierDelay",
+    "WeatherDelay",
+    "NASDelay",
+    "SecurityDelay",
+    "LateAircraftDelay",
 ]
 
 # Columns to cast to float where possible; rest remain strings
 NUMERIC_COLUMNS = {
-    "YEAR", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK",
-    "CRS_DEP_TIME", "DEP_DELAY", "CRS_ARR_TIME", "ARR_DELAY",
-    "CRS_ELAPSED_TIME", "DISTANCE", "CARRIER_DELAY", "WEATHER_DELAY",
-    "NAS_DELAY", "SECURITY_DELAY", "LATE_AIRCRAFT_DELAY",
+    "Year", "Month", "DayofMonth", "DayOfWeek",
+    "CRSDepTime", "DepDelay", "CRSArrTime", "ArrDelay",
+    "CRSElapsedTime", "Distance", "CarrierDelay", "WeatherDelay",
+    "NASDelay", "SecurityDelay", "LateAircraftDelay",
 }
 
 LOG_INTERVAL = 1000       # print progress every N messages
