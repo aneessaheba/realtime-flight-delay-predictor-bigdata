@@ -72,8 +72,6 @@ def build_spark_session(app_name: str = "FlightDelay_Training") -> SparkSession:
         .config("spark.sql.shuffle.partitions", "200")
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
         .config("spark.sql.parquet.compression.codec", "snappy")
-        .config("spark.driver.memory", "4g")
-        .config("spark.executor.memory", "6g")
         .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")
         .getOrCreate()
     )
@@ -396,6 +394,7 @@ def main() -> None:
     try:
         # Load and split data
         df = load_data(spark, args.hdfs_path, args.train_years)
+        df = df.sample(fraction=0.2, seed=42)
         class_weights = compute_class_weights(df)
         df = add_class_weights(df, class_weights)
         df.cache()

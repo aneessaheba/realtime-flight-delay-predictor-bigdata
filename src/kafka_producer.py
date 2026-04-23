@@ -1,5 +1,4 @@
 
-cat > src/kafka_producer.py << 'ENDOFFILE'
 """
 kafka_producer.py  –  Kartheek Alluri (Weeks 7-8, swapped from Keon)
 Replays 2024 BTS Airline On-Time Performance data as simulated live
@@ -51,13 +50,46 @@ LEAK_COLS = {"ARR_TIME", "ARR_DELAY", "ARR_DEL15",
              "CARRIER_DELAY", "WEATHER_DELAY", "NAS_DELAY",
              "SECURITY_DELAY", "LATE_AIRCRAFT_DELAY"}
 
+BTS_COLUMN_MAP = {
+    "Year":               "YEAR",
+    "Month":              "MONTH",
+    "DayofMonth":         "DAY_OF_MONTH",
+    "DayOfWeek":          "DAY_OF_WEEK",
+    "Reporting_Airline":  "OP_UNIQUE_CARRIER",
+    "Origin":             "ORIGIN",
+    "Dest":               "DEST",
+    "CRSDepTime":         "CRS_DEP_TIME",
+    "DepDelay":           "DEP_DELAY",
+    "CRSArrTime":         "CRS_ARR_TIME",
+    "ArrDelay":           "ARR_DELAY",
+    "CRSElapsedTime":     "CRS_ELAPSED_TIME",
+    "Distance":           "DISTANCE",
+    "CarrierDelay":       "CARRIER_DELAY",
+    "WeatherDelay":       "WEATHER_DELAY",
+    "NASDelay":           "NAS_DELAY",
+    "SecurityDelay":      "SECURITY_DELAY",
+    "LateAircraftDelay":  "LATE_AIRCRAFT_DELAY",
+    "DepTime":            "DEP_TIME",
+    "ArrTime":            "ARR_TIME",
+    "ArrDel15":           "ARR_DEL15",
+    "FlightDate":         "FL_DATE",
+}
+
 
 def load_data(input_path: str) -> pd.DataFrame:
     p = Path(input_path)
     if p.suffix == ".parquet":
         df = pd.read_parquet(p)
     else:
-        df = pd.read_csv(input_path, usecols=lambda c: c in KEEP_COLS, low_memory=False)
+        df = pd.read_csv(input_path, low_memory=False)
+    
+    # Rename BTS raw columns to standard names
+    df = df.rename(columns=BTS_COLUMN_MAP)
+    
+    # Now filter to keep only relevant columns that exist
+    keep = [c for c in KEEP_COLS if c in df.columns]
+    df = df[keep]
+    
     df = df[df["DEP_TIME"].notna()].reset_index(drop=True)
     print(f"[producer] Loaded {len(df):,} rows from {input_path}")
     return df

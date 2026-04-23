@@ -63,6 +63,31 @@ NUMERIC_COLUMNS = {
     "NAS_DELAY", "SECURITY_DELAY", "LATE_AIRCRAFT_DELAY",
 }
 
+BTS_COLUMN_MAP = {
+    "Year":               "YEAR",
+    "Month":              "MONTH",
+    "DayofMonth":         "DAY_OF_MONTH",
+    "DayOfWeek":          "DAY_OF_WEEK",
+    "Reporting_Airline":  "OP_UNIQUE_CARRIER",
+    "Origin":             "ORIGIN",
+    "Dest":               "DEST",
+    "CRSDepTime":         "CRS_DEP_TIME",
+    "DepDelay":           "DEP_DELAY",
+    "CRSArrTime":         "CRS_ARR_TIME",
+    "ArrDelay":           "ARR_DELAY",
+    "CRSElapsedTime":     "CRS_ELAPSED_TIME",
+    "Distance":           "DISTANCE",
+    "CarrierDelay":       "CARRIER_DELAY",
+    "WeatherDelay":       "WEATHER_DELAY",
+    "NASDelay":           "NAS_DELAY",
+    "SecurityDelay":      "SECURITY_DELAY",
+    "LateAircraftDelay":  "LATE_AIRCRAFT_DELAY",
+    "DepTime":            "DEP_TIME",
+    "ArrTime":            "ARR_TIME",
+    "ArrDel15":           "ARR_DEL15",
+    "FlightDate":         "FL_DATE",
+}
+
 LOG_INTERVAL = 1000       # print progress every N messages
 RECONNECT_ATTEMPTS = 5    # max retries when Kafka is unavailable
 RECONNECT_DELAY_S = 5     # seconds between retry attempts
@@ -152,13 +177,14 @@ def row_to_dict(row: Dict[str, str]) -> Optional[Dict]:
 
 
 def csv_record_generator(files: List[Path]) -> Generator[Dict, None, None]:
-    """Yield one flight record dict per CSV row across all files."""
     for filepath in files:
         logger.info("Reading file: %s", filepath)
         with filepath.open(newline="", encoding="utf-8", errors="replace") as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                record = row_to_dict(row)
+                # Rename BTS raw column names to standard names
+                renamed_row = {BTS_COLUMN_MAP.get(k, k): v for k, v in row.items()}
+                record = row_to_dict(renamed_row)
                 if record is not None:
                     yield record
 
