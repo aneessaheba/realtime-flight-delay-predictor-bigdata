@@ -92,6 +92,28 @@ NULLABLE_DELAY_COLS = [
     "DEP_DELAY",
 ]
 
+# Map from BTS raw CSV column names - internal SELECTED_COLUMNS names
+BTS_COLUMN_MAP = {
+    "Year":               "YEAR",
+    "Month":              "MONTH",
+    "DayofMonth":         "DAY_OF_MONTH",
+    "DayOfWeek":          "DAY_OF_WEEK",
+    "Reporting_Airline":  "OP_UNIQUE_CARRIER",
+    "Origin":             "ORIGIN",
+    "Dest":               "DEST",
+    "CRSDepTime":         "CRS_DEP_TIME",
+    "DepDelay":           "DEP_DELAY",
+    "CRSArrTime":         "CRS_ARR_TIME",
+    "ArrDelay":           "ARR_DELAY",
+    "CRSElapsedTime":     "CRS_ELAPSED_TIME",
+    "Distance":           "DISTANCE",
+    "CarrierDelay":       "CARRIER_DELAY",
+    "WeatherDelay":       "WEATHER_DELAY",
+    "NASDelay":           "NAS_DELAY",
+    "SecurityDelay":      "SECURITY_DELAY",
+    "LateAircraftDelay":  "LATE_AIRCRAFT_DELAY",
+}
+
 ARR_DELAY_THRESHOLD = 15.0  # minutes
 
 
@@ -139,12 +161,19 @@ def read_raw_csv(spark: SparkSession, csv_paths: List[str]):
     logger.info("Reading CSV files from: %s", csv_paths)
     df = (
         spark.read.option("header", "true")
-        .option("inferSchema", "false")  # All columns as strings initially
+        .option("inferSchema", "false")
         .option("nullValue", "")
         .option("mode", "PERMISSIVE")
         .csv(csv_paths)
     )
     logger.info("Raw schema has %d columns.", len(df.columns))
+
+    # Rename BTS raw column names to internal standard names
+    for raw_name, std_name in BTS_COLUMN_MAP.items():
+        if raw_name in df.columns:
+            df = df.withColumnRenamed(raw_name, std_name)
+    logger.info("Column rename complete.")
+
     return df
 
 

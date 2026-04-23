@@ -44,8 +44,6 @@ def build_spark_session() -> SparkSession:
         .config("spark.sql.shuffle.partitions", "200")
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
         .config("spark.sql.parquet.compression.codec", "snappy")
-        .config("spark.driver.memory", "4g")
-        .config("spark.executor.memory", "6g")
         .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")
         .getOrCreate()
     )
