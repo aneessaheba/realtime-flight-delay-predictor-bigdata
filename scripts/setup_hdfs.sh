@@ -26,9 +26,13 @@ POLL_INTERVAL=5  # Seconds between readiness checks
 # HDFS directories to create
 HDFS_DIRS=(
     "/data/flights"
+    "/data/flights/cleaned"
+    "/data/flights/featured"
     "/models"
+    "/models/preprocessing_pipeline"
     "/output/streaming_predictions"
     "/output/batch_predictions"
+    "/output/eda"
     "/checkpoints/streaming"
     "/tmp"
 )
