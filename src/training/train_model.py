@@ -10,8 +10,8 @@ Serialises both full Pipelines to HDFS.
 
 Usage:
     spark-submit src/training/train_model.py \
-        --hdfs-path hdfs://namenode:9000/data/flights \
-        --model-path hdfs://namenode:9000/models \
+        --hdfs-path hdfs://hdfs-namenode:9000/data/flights \
+        --model-path hdfs://hdfs-namenode:9000/models \
         --train-years 2018 2019 2020 2021 2022 2023
 """
 
@@ -355,12 +355,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train flight delay prediction models.")
     parser.add_argument(
         "--hdfs-path",
-        default="hdfs://namenode:9000/data/flights",
+        default="hdfs://hdfs-namenode:9000/data/flights",
         help="HDFS path to cleaned Parquet data.",
     )
     parser.add_argument(
         "--model-path",
-        default="hdfs://namenode:9000/models",
+        default="hdfs://hdfs-namenode:9000/models",
         help="HDFS base path to save trained models.",
     )
     parser.add_argument(

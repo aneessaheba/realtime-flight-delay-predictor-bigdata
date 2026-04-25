@@ -8,7 +8,7 @@ partitioned by YEAR and MONTH.
 Usage:
     spark-submit src/ingestion/ingest_bts_to_hdfs.py \
         --input-path /data/raw/bts \
-        --hdfs-path hdfs://namenode:9000/data/flights \
+        --hdfs-path hdfs://hdfs-namenode:9000/data/flights \
         --years 2018 2019 2020 2021 2022 2023
 """
 
@@ -259,7 +259,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--hdfs-path",
-        default="hdfs://namenode:9000/data/flights",
+        default="hdfs://hdfs-namenode:9000/data/flights",
         help="HDFS destination path for Parquet output.",
     )
     parser.add_argument(

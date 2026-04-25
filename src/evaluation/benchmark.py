@@ -6,8 +6,8 @@ from streaming output timestamps, and produce a consolidated benchmark report.
 
 Usage:
     python src/evaluation/benchmark.py \
-        --batch-path hdfs://namenode:9000/output/batch_predictions \
-        --streaming-path hdfs://namenode:9000/output/streaming_predictions \
+        --batch-path hdfs://hdfs-namenode:9000/output/batch_predictions \
+        --streaming-path hdfs://hdfs-namenode:9000/output/streaming_predictions \
         --report-path /output/benchmark_report.json \
         --spark-master spark://spark-master:7077
 """
@@ -364,12 +364,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--batch-path",
-        default="hdfs://namenode:9000/output/batch_predictions",
+        default="hdfs://hdfs-namenode:9000/output/batch_predictions",
         help="HDFS path to batch prediction Parquet output.",
     )
     parser.add_argument(
         "--streaming-path",
-        default="hdfs://namenode:9000/output/streaming_predictions",
+        default="hdfs://hdfs-namenode:9000/output/streaming_predictions",
         help="HDFS path to streaming prediction Parquet output.",
     )
     parser.add_argument(

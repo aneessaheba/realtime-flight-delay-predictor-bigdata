@@ -6,9 +6,9 @@ evaluates classification metrics, and writes predictions to HDFS.
 
 Usage:
     spark-submit src/batch/batch_inference.py \
-        --data-path hdfs://namenode:9000/data/flights \
-        --model-path hdfs://namenode:9000/models/gbt_pipeline \
-        --output-path hdfs://namenode:9000/output/batch_predictions \
+        --data-path hdfs://hdfs-namenode:9000/data/flights \
+        --model-path hdfs://hdfs-namenode:9000/models/gbt_pipeline \
+        --output-path hdfs://hdfs-namenode:9000/output/batch_predictions \
         --test-years 2024
 """
 
@@ -242,17 +242,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--data-path",
-        default="hdfs://namenode:9000/data/flights",
+        default="hdfs://hdfs-namenode:9000/data/flights",
         help="HDFS path to cleaned Parquet data.",
     )
     parser.add_argument(
         "--model-path",
-        default="hdfs://namenode:9000/models/gbt_pipeline",
+        default="hdfs://hdfs-namenode:9000/models/gbt_pipeline",
         help="HDFS path to the saved GBT PipelineModel.",
     )
     parser.add_argument(
         "--output-path",
-        default="hdfs://namenode:9000/output/batch_predictions",
+        default="hdfs://hdfs-namenode:9000/output/batch_predictions",
         help="HDFS output path for batch prediction Parquet files.",
     )
     parser.add_argument(

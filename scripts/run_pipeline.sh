@@ -19,8 +19,8 @@
 #
 # Environment variables (with defaults):
 #   BTS_INPUT_PATH      - Local path to BTS CSV files       (./data/raw)
-#   HDFS_DATA_PATH      - HDFS path for flight data         (hdfs://namenode:9000/data/flights)
-#   HDFS_MODEL_PATH     - HDFS path for models              (hdfs://namenode:9000/models)
+#   HDFS_DATA_PATH      - HDFS path for flight data         (hdfs://hdfs-namenode:9000/data/flights)
+#   HDFS_MODEL_PATH     - HDFS path for models              (hdfs://hdfs-namenode:9000/models)
 #   SPARK_MASTER        - Spark master URL                  (spark://spark-master:7077)
 #   KAFKA_BOOTSTRAP     - Kafka bootstrap server            (localhost:9093)
 #   KAFKA_TOPIC         - Kafka topic name                  (flight-events)
@@ -35,10 +35,10 @@ set -euo pipefail
 # ─── Default configuration ────────────────────────────────────────────────────
 
 BTS_INPUT_PATH="${BTS_INPUT_PATH:-./data/raw}"
-HDFS_DATA_PATH="${HDFS_DATA_PATH:-hdfs://namenode:9000/data/flights}"
-HDFS_MODEL_PATH="${HDFS_MODEL_PATH:-hdfs://namenode:9000/models}"
-HDFS_OUTPUT_PATH="${HDFS_OUTPUT_PATH:-hdfs://namenode:9000/output}"
-HDFS_CHECKPOINT_PATH="${HDFS_CHECKPOINT_PATH:-hdfs://namenode:9000/checkpoints/streaming}"
+HDFS_DATA_PATH="${HDFS_DATA_PATH:-hdfs://hdfs-namenode:9000/data/flights}"
+HDFS_MODEL_PATH="${HDFS_MODEL_PATH:-hdfs://hdfs-namenode:9000/models}"
+HDFS_OUTPUT_PATH="${HDFS_OUTPUT_PATH:-hdfs://hdfs-namenode:9000/output}"
+HDFS_CHECKPOINT_PATH="${HDFS_CHECKPOINT_PATH:-hdfs://hdfs-namenode:9000/checkpoints/streaming}"
 SPARK_MASTER="${SPARK_MASTER:-spark://spark-master:7077}"
 KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP:-localhost:9093}"
 KAFKA_TOPIC="${KAFKA_TOPIC:-flight-events}"
@@ -173,7 +173,7 @@ ingest_data() {
         --executor-memory 6g \
         --executor-cores 4 \
         --conf spark.sql.shuffle.partitions=200 \
-        --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 \
+        --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
         src/ingestion/ingest_bts_to_hdfs.py \
         --input-path "${BTS_INPUT_PATH}" \
         --hdfs-path "${HDFS_DATA_PATH}" \
@@ -203,7 +203,7 @@ train_models() {
         --executor-memory 8g \
         --executor-cores 4 \
         --conf spark.sql.shuffle.partitions=200 \
-        --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 \
+        --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
         src/training/train_model.py \
         --hdfs-path "${HDFS_DATA_PATH}" \
         --model-path "${HDFS_MODEL_PATH}" \
@@ -234,7 +234,7 @@ start_streaming_consumer() {
         --executor-cores 4 \
         --packages "${KAFKA_PACKAGE}" \
         --conf spark.sql.shuffle.partitions=50 \
-        --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 \
+        --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
         src/streaming/streaming_consumer.py \
         --kafka-bootstrap "${KAFKA_BOOTSTRAP}" \
         --topic "${KAFKA_TOPIC}" \
@@ -316,7 +316,7 @@ run_batch_inference() {
         --executor-memory 6g \
         --executor-cores 4 \
         --conf spark.sql.shuffle.partitions=200 \
-        --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 \
+        --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
         src/batch/batch_inference.py \
         --data-path "${HDFS_DATA_PATH}" \
         --model-path "${HDFS_MODEL_PATH}/gbt_pipeline" \
@@ -346,7 +346,7 @@ run_benchmark() {
         --driver-memory 4g \
         --executor-memory 4g \
         --executor-cores 2 \
-        --conf spark.hadoop.fs.defaultFS=hdfs://namenode:9000 \
+        --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
         src/evaluation/benchmark.py \
         --batch-path "${HDFS_OUTPUT_PATH}/batch_predictions" \
         --streaming-path "${HDFS_OUTPUT_PATH}/streaming_predictions" \

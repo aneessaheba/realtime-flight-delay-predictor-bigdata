@@ -11,9 +11,9 @@ Usage:
         src/streaming/streaming_consumer.py \
         --kafka-bootstrap kafka:9092 \
         --topic flight-events \
-        --model-path hdfs://namenode:9000/models/gbt_pipeline \
-        --output-path hdfs://namenode:9000/output/streaming_predictions \
-        --checkpoint-path hdfs://namenode:9000/checkpoints/streaming
+        --model-path hdfs://hdfs-namenode:9000/models/gbt_pipeline \
+        --output-path hdfs://hdfs-namenode:9000/output/streaming_predictions \
+        --checkpoint-path hdfs://hdfs-namenode:9000/checkpoints/streaming
 """
 
 import argparse
@@ -284,17 +284,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-path",
-        default="hdfs://namenode:9000/models/gbt_pipeline",
+        default="hdfs://hdfs-namenode:9000/models/gbt_pipeline",
         help="HDFS path to the saved GBT PipelineModel.",
     )
     parser.add_argument(
         "--output-path",
-        default="hdfs://namenode:9000/output/streaming_predictions",
+        default="hdfs://hdfs-namenode:9000/output/streaming_predictions",
         help="HDFS output path for prediction Parquet files.",
     )
     parser.add_argument(
         "--checkpoint-path",
-        default="hdfs://namenode:9000/checkpoints/streaming",
+        default="hdfs://hdfs-namenode:9000/checkpoints/streaming",
         help="HDFS checkpoint directory for Structured Streaming.",
     )
     parser.add_argument(
