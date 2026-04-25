@@ -7,7 +7,7 @@ printing throughput and latency statistics.
 
 Usage:
     spark-submit \
-        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.2.0 \
         src/streaming/streaming_consumer.py \
         --kafka-bootstrap kafka:9092 \
         --topic flight-events \
@@ -91,8 +91,10 @@ def build_spark_session() -> SparkSession:
         .config("spark.streaming.stopGracefullyOnShutdown", "true")
         .config("spark.sql.streaming.schemaInference", "true")
         .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")
-        # Reduce per-batch overhead for low-latency micro-batches
         .config("spark.sql.streaming.minBatchesToRetain", "2")
+        # Delta Lake
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
         .getOrCreate()
     )
     spark.sparkContext.setLogLevel("WARN")
@@ -212,11 +214,13 @@ def make_batch_handler(model: PipelineModel, output_path: str):
             "latency_ms",
         )
 
-        # ── 2. Write to HDFS ─────────────────────────────────────────
+        # ── 2. Write to Delta Lake ───────────────────────────────────
         (
-            output_df.write.mode("append")
-            .option("compression", "snappy")
-            .parquet(output_path)
+            output_df.write.format("delta")
+            .mode("append")
+            .option("mergeSchema", "true")
+            .partitionBy("YEAR", "MONTH")
+            .save(output_path)
         )
 
         # ── 3. Console preview ───────────────────────────────────────

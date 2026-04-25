@@ -1,19 +1,32 @@
-
 """
 kafka_producer.py  –  Kartheek Alluri (Weeks 7-8, swapped from Keon)
 Replays 2024 BTS Airline On-Time Performance data as simulated live
 flight-departure events, publishing each flight as a JSON message to
-the Kafka topic  `flight-events`.
+the Kafka topic `flight-events`.
+
+Streaming Algorithm: Reservoir Sampling
+    When --sample K is provided, an unbiased random sample of exactly K
+    rows is drawn from the dataset using Algorithm R (Vitter, 1985) before
+    any messages are published. This gives a fixed-size, uniformly random
+    subset of the stream without knowing the total size in advance — a
+    classic streaming algorithm that runs in O(n) time with O(K) memory.
 
 Usage
 -----
-# From repo root (inside Docker network or with Kafka on localhost:9093):
+# Full dataset (no sampling):
+python src/kafka_producer.py \
+    --input  data/2024_ontime.parquet \
+    --broker localhost:9093 \
+    --topic  flight-events \
+    --rate   500
+
+# Reservoir-sampled subset of 50,000 rows:
 python src/kafka_producer.py \
     --input  data/2024_ontime.parquet \
     --broker localhost:9093 \
     --topic  flight-events \
     --rate   500 \
-    --limit  0
+    --sample 50000
 
 Arguments
 ---------
@@ -23,10 +36,13 @@ Arguments
 --rate    Target publish rate in events/second.  0 = as fast as possible.
 --limit   Stop after N messages.  0 = stream the whole file then loop.
 --loop    If set, replay the file indefinitely (useful for benchmark runs).
+--sample  If > 0, apply reservoir sampling to draw this many rows uniformly
+          at random before publishing. 0 = use all rows.
 """
 
 import argparse
 import json
+import random
 import time
 import sys
 from pathlib import Path
@@ -50,49 +66,51 @@ LEAK_COLS = {"ARR_TIME", "ARR_DELAY", "ARR_DEL15",
              "CARRIER_DELAY", "WEATHER_DELAY", "NAS_DELAY",
              "SECURITY_DELAY", "LATE_AIRCRAFT_DELAY"}
 
-BTS_COLUMN_MAP = {
-    "Year":               "YEAR",
-    "Month":              "MONTH",
-    "DayofMonth":         "DAY_OF_MONTH",
-    "DayOfWeek":          "DAY_OF_WEEK",
-    "Reporting_Airline":  "OP_UNIQUE_CARRIER",
-    "Origin":             "ORIGIN",
-    "Dest":               "DEST",
-    "CRSDepTime":         "CRS_DEP_TIME",
-    "DepDelay":           "DEP_DELAY",
-    "CRSArrTime":         "CRS_ARR_TIME",
-    "ArrDelay":           "ARR_DELAY",
-    "CRSElapsedTime":     "CRS_ELAPSED_TIME",
-    "Distance":           "DISTANCE",
-    "CarrierDelay":       "CARRIER_DELAY",
-    "WeatherDelay":       "WEATHER_DELAY",
-    "NASDelay":           "NAS_DELAY",
-    "SecurityDelay":      "SECURITY_DELAY",
-    "LateAircraftDelay":  "LATE_AIRCRAFT_DELAY",
-    "DepTime":            "DEP_TIME",
-    "ArrTime":            "ARR_TIME",
-    "ArrDel15":           "ARR_DEL15",
-    "FlightDate":         "FL_DATE",
-}
-
 
 def load_data(input_path: str) -> pd.DataFrame:
     p = Path(input_path)
     if p.suffix == ".parquet":
         df = pd.read_parquet(p)
     else:
-        df = pd.read_csv(input_path, low_memory=False)
-    
-    # Rename BTS raw columns to standard names
-    df = df.rename(columns=BTS_COLUMN_MAP)
-    
-    # Now filter to keep only relevant columns that exist
-    keep = [c for c in KEEP_COLS if c in df.columns]
-    df = df[keep]
-    
+        df = pd.read_csv(input_path, usecols=lambda c: c in KEEP_COLS, low_memory=False)
     df = df[df["DEP_TIME"].notna()].reset_index(drop=True)
     print(f"[producer] Loaded {len(df):,} rows from {input_path}")
     return df
+
+
+def reservoir_sample(df: pd.DataFrame, k: int) -> pd.DataFrame:
+    """
+    Algorithm R (Vitter, 1985) — Reservoir Sampling.
+
+    Draws an unbiased simple random sample of exactly k rows from df in a
+    single pass, without replacement. Each element i has exactly k/i
+    probability of being selected at step i, so the final reservoir is a
+    uniformly random subset over all C(n, k) possible subsets.
+
+    This is applied here to draw a fixed-size benchmark sample from the
+    2024 BTS dataset without loading or sorting the full file multiple times.
+
+    Time:  O(n)
+    Space: O(k)
+    """
+    n = len(df)
+    if k >= n:
+        print(f"[producer] Sample size {k:,} >= dataset size {n:,}; using full dataset.")
+        return df
+
+    indices = list(range(k))
+    for i in range(k, n):
+        j = random.randint(0, i)
+        if j < k:
+            indices[j] = i
+
+    sampled = df.iloc[sorted(indices)].reset_index(drop=True)
+    print(
+        f"[producer] Reservoir sampling complete: "
+        f"{len(sampled):,} rows drawn from {n:,} "
+        f"(rate={len(sampled)/n:.2%})"
+    )
+    return sampled
 
 
 def row_to_event(row: pd.Series) -> dict:
@@ -180,8 +198,17 @@ def main():
     parser.add_argument("--rate",   type=float, default=500.0)
     parser.add_argument("--limit",  type=int,   default=0)
     parser.add_argument("--loop",   action="store_true")
+    parser.add_argument(
+        "--sample", type=int, default=0,
+        help="Reservoir sample size. 0 = use all rows (no sampling)."
+    )
     args = parser.parse_args()
+
     df = load_data(args.input)
+
+    if args.sample > 0:
+        df = reservoir_sample(df, args.sample)
+
     producer = build_producer(args.broker)
     publish(producer, args.topic, df, rate=args.rate, limit=args.limit, loop=args.loop)
 

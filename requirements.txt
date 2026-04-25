@@ -7,3 +7,18 @@ matplotlib==3.8.0
 seaborn==0.13.0
 pyarrow==14.0.0
 hdfs==2.7.0
+
+# Streaming algorithms
+pybloom-live==4.0.0
+
+# LSH
+datasketch==1.6.4
+
+# Differential Privacy
+diffprivlib==0.6.4
+
+# Explainable AI
+shap==0.44.1
+
+# Delta Lake (new tool not used in any HW)
+delta-spark==2.4.0

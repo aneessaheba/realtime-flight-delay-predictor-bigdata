@@ -1,0 +1,83 @@
+{
+  "report_generated_at": "2026-04-25T19:01:40.612429Z",
+  "batch_metrics": {
+    "mode": "batch",
+    "record_count": 19153634,
+    "auc_roc": 0.9363,
+    "auc_pr": 0.8798,
+    "f1": 0.9128,
+    "precision": 0.9158,
+    "recall": 0.911,
+    "accuracy": 0.911,
+    "prediction_distribution": {
+      "0": 15096081,
+      "1": 4057553
+    },
+    "pct_predicted_delayed": 21.18,
+    "status": "ok"
+  },
+  "streaming_metrics": {
+    "mode": "streaming",
+    "record_count": 395951,
+    "prediction_distribution": {
+      "0": 356168,
+      "1": 39783
+    },
+    "pct_predicted_delayed": 10.05,
+    "status": "ok"
+  },
+  "batch_metrics_dp_reported": {
+    "mode": "batch",
+    "record_count": 19153634,
+    "auc_roc": 0.9302,
+    "auc_pr": 0.8785,
+    "f1": 0.9219,
+    "precision": 0.9092,
+    "recall": 0.8972,
+    "accuracy": 0.9199,
+    "prediction_distribution": {
+      "0": 15096081,
+      "1": 4057553
+    },
+    "pct_predicted_delayed": 21.18,
+    "status": "ok",
+    "dp_epsilon": 1.0,
+    "dp_mechanism": "Laplace",
+    "dp_sensitivity": 0.01
+  },
+  "streaming_metrics_dp_reported": {
+    "mode": "streaming",
+    "record_count": 395951,
+    "prediction_distribution": {
+      "0": 356168,
+      "1": 39783
+    },
+    "pct_predicted_delayed": 10.05,
+    "status": "ok",
+    "dp_epsilon": 1.0,
+    "dp_mechanism": "Laplace",
+    "dp_sensitivity": 0.01
+  },
+  "metric_comparison": {},
+  "streaming_latency": {
+    "mean_ms": 42258.94,
+    "stddev_ms": 181052.84,
+    "min_ms": 0.2,
+    "max_ms": 950548.49,
+    "p50_ms": 4088.02,
+    "p90_ms": 18289.81,
+    "p95_ms": 23417.54,
+    "p99_ms": 948541.49,
+    "sample_count": 77869
+  },
+  "streaming_throughput": {},
+  "lsh_anomaly_detection": {
+    "lsh_sample_size": 5000,
+    "lsh_threshold": 0.5,
+    "lsh_num_perm": 128,
+    "lsh_pairs_checked": 5110158,
+    "lsh_anomalous_pairs": 651950,
+    "lsh_anomaly_rate": 0.1276,
+    "lsh_interpretation": "High anomaly rate indicates the model predicts differently for near-identical route/carrier pairs \u2014 possible feature skew or boundary instability."
+  }
+}
