@@ -20,8 +20,8 @@ Explainable AI added (SHAP):
 
 Usage:
     spark-submit src/training/train_model.py \
-        --hdfs-path hdfs://hdfs-namenode:9000/user/spark/data/flights_raw \
-        --model-path hdfs://hdfs-namenode:9000/user/spark/models \
+        --hdfs-path hdfs://hdfs-namenode:9000/data/flights \
+        --model-path hdfs://hdfs-namenode:9000/models \
         --train-years 2021 2022 2023 \
         --cv-folds 2 \
         --skip-lr \
@@ -435,11 +435,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train flight delay prediction models.")
     parser.add_argument(
         "--hdfs-path",
-        default="hdfs://hdfs-namenode:9000/user/spark/data/flights_raw"
+        default="hdfs://hdfs-namenode:9000/data/flights"
     )
     parser.add_argument(
         "--model-path",
-        default="hdfs://hdfs-namenode:9000/user/spark/models"
+        default="hdfs://hdfs-namenode:9000/models"
     )
     parser.add_argument(
         "--train-years", nargs="+", type=int, default=[2021, 2022, 2023]

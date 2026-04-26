@@ -203,7 +203,7 @@ def main():
     parser.add_argument("--kafka",      default="localhost:9093")
     parser.add_argument("--hdfs-url",   default="http://localhost:9870")
     parser.add_argument("--spark-url",  default="http://localhost:8080")
-    parser.add_argument("--output",     default="hdfs:///predictions/streaming")
+    parser.add_argument("--output",     default="hdfs://hdfs-namenode:9000/output/streaming_predictions")
     parser.add_argument("--events",     type=int, default=100)
     parser.add_argument("--wait",       type=int, default=60)
     parser.add_argument("--skip-kafka",   action="store_true")
