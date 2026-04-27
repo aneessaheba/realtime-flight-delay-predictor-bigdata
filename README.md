@@ -40,13 +40,18 @@ End-to-end pipeline that ingests historical BTS flight data, trains ML models (L
 - **`train_local.py`** — same pipeline in `local[*]` Spark mode (no Docker needed), 3-fold CV for faster iteration, checks mid-term target (GBT F1 ≥ 0.70), saves to local `models/`
 - **`generate_sample_data.py`** — generates 100k-row synthetic BTS-schema CSV for local testing when real data isn't downloaded yet (~20% delayed, realistic class imbalance)
 
-### Streaming inference (`src/streaming/`)
-- **`kafka_producer.py`** — loads 2024 BTS data from HDFS, serializes each flight record as JSON, publishes to Kafka topic `flight-events` at configurable rate (simulates real-time arrivals)
-- **`streaming_consumer.py`** — Spark Structured Streaming job that reads from Kafka, deserializes, applies the trained GBT pipeline model, writes predictions to HDFS; measures per-batch latency and throughput
+### Streaming inference (`src/streaming/`, `src/`)
+- **`streaming/kafka_producer.py`** — loads 2024 BTS data from HDFS, serializes each flight record as JSON, publishes to Kafka topic `flight-events` at configurable rate (simulates real-time arrivals)
+- **`streaming/streaming_consumer.py`** — Spark Structured Streaming job that reads from Kafka, deserializes, applies the trained GBT pipeline model, writes predictions to HDFS; measures per-batch latency and throughput
+- **`kafka_producer.py`** — extended producer with **Reservoir Sampling** (Algorithm R, Vitter 1985) via `--sample K` flag; draws an unbiased fixed-size sample from the 2024 dataset in a single O(n) pass with O(k) memory before publishing to Kafka
+- **`spark_streaming_consumer.py`** — extended consumer with **Bloom Filter** deduplication (pybloom-live, 1% FP rate) tracking flight IDs across micro-batches; predictions written via **Delta Lake** (ACID transactions, time-travel, schema enforcement on HDFS)
 
 ### Batch inference & benchmarking (`src/batch/`, `src/evaluation/`)
 - **`batch_inference.py`** — loads the same GBT pipeline, scores the full 2024 held-out set in one Spark job, writes predictions to HDFS
-- **`benchmark.py`** — reads both streaming and batch output from HDFS, computes and compares: throughput (events/sec), average latency, AUC-ROC, F1, precision, recall; prints side-by-side report
+- **`benchmark.py`** — reads both streaming and batch output from HDFS, computes and compares: throughput (events/sec), average latency, AUC-ROC, F1, precision, recall; applies **Differential Privacy** (Laplace mechanism, ε=1.0) to published metrics and **LSH anomaly detection** (MinHashLSH, datasketch) to flag prediction inconsistencies across similar flights
+
+### End-to-end testing (`scripts/`)
+- **`smoke_test.py`** — validates Kafka connectivity, HDFS health, Spark UI, and prediction output in one script
 
 ---
 
@@ -54,15 +59,22 @@ End-to-end pipeline that ingests historical BTS flight data, trains ML models (L
 
 - [x] Docker Compose cluster — all 7 services with healthchecks
 - [x] HDFS directory structure setup script
-- [x] End-to-end pipeline orchestration script
-- [x] BTS CSV ingestion to HDFS Parquet (with column normalization)
+- [x] End-to-end pipeline orchestration script (`scripts/run_pipeline.sh`)
+- [x] End-to-end smoke test (`scripts/smoke_test.py`)
+- [x] BTS CSV ingestion to HDFS Parquet (with column normalization for mixed-case headers)
 - [x] Feature engineering pipeline (leakage-free, derived features, Spark ML pipeline serialized to HDFS)
 - [x] EDA — HDFS CSV reports + local matplotlib plots
 - [x] ML training — LR + GBT with CrossValidator, both HDFS and local modes
 - [x] Kafka producer (replay 2024 data as real-time stream)
+- [x] Reservoir Sampling on producer (`--sample` flag, Algorithm R)
 - [x] Spark Structured Streaming consumer with live inference
+- [x] Bloom Filter deduplication across micro-batches (pybloom-live)
+- [x] Delta Lake output for streaming predictions (ACID, time-travel)
 - [x] Batch inference on held-out 2024 data
 - [x] Batch vs. streaming benchmark evaluation
+- [x] Differential Privacy on reported metrics (IBM diffprivlib, Laplace, ε=1.0)
+- [x] LSH anomaly detection on streaming predictions (datasketch MinHashLSH)
+- [x] SHAP explainability after GBT training (TreeExplainer)
 - [x] Local dev mode — one command setup + train without Docker (`run_local.sh`)
 
 ## What's remaining
