@@ -87,6 +87,18 @@ def build_spark_session() -> SparkSession:
 # ── Data loading ──────────────────────────────────────────────────────────────
 
 
+BTS_COLUMN_MAP = {
+    "Year": "YEAR", "Month": "MONTH", "DayofMonth": "DAY_OF_MONTH",
+    "DayOfWeek": "DAY_OF_WEEK", "Reporting_Airline": "OP_UNIQUE_CARRIER",
+    "Origin": "ORIGIN", "Dest": "DEST", "CRSDepTime": "CRS_DEP_TIME",
+    "DepDelay": "DEP_DELAY", "CRSArrTime": "CRS_ARR_TIME",
+    "ArrDelay": "ARR_DELAY", "CRSElapsedTime": "CRS_ELAPSED_TIME",
+    "Distance": "DISTANCE", "CarrierDelay": "CARRIER_DELAY",
+    "WeatherDelay": "WEATHER_DELAY", "NASDelay": "NAS_DELAY",
+    "SecurityDelay": "SECURITY_DELAY", "LateAircraftDelay": "LATE_AIRCRAFT_DELAY",
+}
+
+
 def load_data(spark: SparkSession, input_path: str):
     logger.info("Loading data from: %s", input_path)
 
@@ -100,6 +112,9 @@ def load_data(spark: SparkSession, input_path: str):
             .option("mode", "PERMISSIVE")
             .csv(input_path)
         )
+        for raw, std in BTS_COLUMN_MAP.items():
+            if raw in df.columns:
+                df = df.withColumnRenamed(raw, std)
 
     # Drop cancelled / diverted flights before creating the label
     df = df.filter(F.col("ARR_DELAY").isNotNull())
