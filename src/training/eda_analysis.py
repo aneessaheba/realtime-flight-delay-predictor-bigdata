@@ -29,11 +29,25 @@ NUMERIC_COLS = [
 ]
 
 
+BTS_COLUMN_MAP = {
+    "Year": "YEAR", "Month": "MONTH", "DayofMonth": "DAY_OF_MONTH",
+    "DayOfWeek": "DAY_OF_WEEK", "Reporting_Airline": "OP_UNIQUE_CARRIER",
+    "Origin": "ORIGIN", "Dest": "DEST", "CRSDepTime": "CRS_DEP_TIME",
+    "DepDelay": "DEP_DELAY", "CRSArrTime": "CRS_ARR_TIME",
+    "ArrDelay": "ARR_DELAY", "CRSElapsedTime": "CRS_ELAPSED_TIME",
+    "Distance": "DISTANCE", "CarrierDelay": "CARRIER_DELAY",
+    "WeatherDelay": "WEATHER_DELAY", "NASDelay": "NAS_DELAY",
+    "SecurityDelay": "SECURITY_DELAY", "LateAircraftDelay": "LATE_AIRCRAFT_DELAY",
+}
+
+
 def load_data(path: str) -> pd.DataFrame:
     if path.endswith(".parquet") or os.path.isdir(path):
         df = pd.read_parquet(path)
     else:
         df = pd.read_csv(path, low_memory=False)
+    df.rename(columns=BTS_COLUMN_MAP, inplace=True)
+    df = df[df["ARR_DELAY"].notna()].copy()
     df["label"] = (df["ARR_DELAY"] > DELAY_THRESHOLD).astype(int)
     return df
 
