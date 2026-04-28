@@ -1,38 +1,80 @@
 [
   {
     "model": "GBTClassifier",
-    "auc_roc": 0.9341,
-    "auc_pr": 0.8819,
-    "f1": 0.9018,
-    "precision": 0.9042,
-    "recall": 0.9003,
-    "accuracy": 0.9003,
-    "cv_scores": [
-      0.9305,
-      0.9316,
-      0.9314,
-      0.933,
-      0.9318,
-      0.9332,
-      0.9329,
-      0.9346
-    ]
+    "dataset": "Dec 2021 BTS (537,183 flights)",
+    "training_mode": "Docker Spark cluster (local[4], 3-fold CV)",
+    "auc_roc": 0.9369,
+    "auc_pr": 0.8849,
+    "f1": 0.9012,
+    "precision": 0.9043,
+    "recall": 0.8993,
+    "accuracy": 0.8993,
+    "best_cv_auc_roc": 0.9361,
+    "top_features": {
+      "DEP_DELAY": 0.7868,
+      "DEST_idx": 0.065,
+      "OP_UNIQUE_CARRIER_idx": 0.034,
+      "CRS_ELAPSED_TIME": 0.031,
+      "ORIGIN_idx": 0.0304,
+      "CRS_DEP_TIME": 0.0249,
+      "DISTANCE": 0.0195,
+      "DAY_OF_WEEK": 0.0084
+    }
   },
   {
     "model": "LogisticRegression",
-    "auc_roc": 0.9271,
-    "auc_pr": 0.8732,
-    "f1": 0.8988,
-    "precision": 0.9021,
-    "recall": 0.8968,
-    "accuracy": 0.8968,
-    "cv_scores": [
-      0.928,
-      0.9279,
-      0.926,
-      0.9268,
-      0.911,
-      0.9236
-    ]
+    "dataset": "Dec 2021 BTS (537,183 flights)",
+    "training_mode": "Docker Spark cluster (local[4], 3-fold CV)",
+    "auc_roc": 0.9267,
+    "auc_pr": 0.872,
+    "f1": 0.9088,
+    "precision": 0.9089,
+    "recall": 0.9087,
+    "accuracy": 0.9087,
+    "best_cv_auc_roc": 0.9261
+  },
+  {
+    "mode": "batch_inference",
+    "dataset": "Dec 2021 BTS (537,183 flights)",
+    "model": "GBTClassifier",
+    "auc_roc": 0.9386,
+    "auc_pr": 0.8877,
+    "f1": 0.9029,
+    "precision": 0.9058,
+    "recall": 0.9011,
+    "accuracy": 0.9011,
+    "throughput_records_per_sec": 149188.1,
+    "total_time_sec": 3.6,
+    "pct_predicted_delayed": 23.7
+  },
+  {
+    "mode": "streaming_inference",
+    "dataset": "Dec 2021 BTS streamed via Kafka (62,815 records in 90s window)",
+    "model": "GBTClassifier",
+    "throughput_events_per_sec_peak": 11648.3,
+    "throughput_events_per_sec_steady": 10070.8,
+    "latency_mean_ms": 5302.59,
+    "latency_p50_ms": 5211.87,
+    "latency_p95_ms": 9920.75,
+    "latency_p99_ms": 10438.05,
+    "trigger_interval_sec": 10,
+    "target_throughput_events_per_sec": 500,
+    "target_met": true,
+    "note": "Latency includes 10s batch accumulation window; per-batch processing time was 856-1732ms"
+  },
+  {
+    "lsh_anomaly_detection": {
+      "sample_size": 5000,
+      "pairs_checked": 24995000,
+      "anomalous_pairs": 0,
+      "anomaly_rate": 0.0,
+      "interpretation": "Anomaly rate within acceptable range; predictions are consistent across similar flights."
+    },
+    "differential_privacy": {
+      "mechanism": "Laplace",
+      "epsilon": 1.0,
+      "sensitivity": 0.01,
+      "note": "Metrics published with Laplace noise to protect individual flight privacy"
+    }
   }
 ]

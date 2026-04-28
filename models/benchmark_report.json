@@ -1,0 +1,81 @@
+{
+  "report_generated_at": "2026-04-28T07:11:10.911233Z",
+  "batch_metrics": {
+    "mode": "batch",
+    "record_count": 537183,
+    "auc_roc": 0.9386,
+    "auc_pr": 0.8877,
+    "f1": 0.9029,
+    "precision": 0.9058,
+    "recall": 0.9011,
+    "accuracy": 0.9011,
+    "prediction_distribution": {
+      "0": 409863,
+      "1": 127320
+    },
+    "pct_predicted_delayed": 23.7,
+    "status": "ok"
+  },
+  "streaming_metrics": {
+    "mode": "streaming",
+    "record_count": 62815,
+    "prediction_distribution": {
+      "0": 62815
+    },
+    "pct_predicted_delayed": 0.0,
+    "status": "ok"
+  },
+  "batch_metrics_dp_reported": {
+    "mode": "batch",
+    "record_count": 537183,
+    "auc_roc": 0.9411,
+    "auc_pr": 0.8775,
+    "f1": 0.911,
+    "precision": 0.921,
+    "recall": 0.9,
+    "accuracy": 0.8939,
+    "prediction_distribution": {
+      "0": 409863,
+      "1": 127320
+    },
+    "pct_predicted_delayed": 23.7,
+    "status": "ok",
+    "dp_epsilon": 1.0,
+    "dp_mechanism": "Laplace",
+    "dp_sensitivity": 0.01
+  },
+  "streaming_metrics_dp_reported": {
+    "mode": "streaming",
+    "record_count": 62815,
+    "prediction_distribution": {
+      "0": 62815
+    },
+    "pct_predicted_delayed": 0.0,
+    "status": "ok",
+    "dp_epsilon": 1.0,
+    "dp_mechanism": "Laplace",
+    "dp_sensitivity": 0.01
+  },
+  "metric_comparison": {},
+  "streaming_latency": {
+    "mean_ms": 5302.59,
+    "stddev_ms": 2906.28,
+    "min_ms": 144.02,
+    "max_ms": 10612.92,
+    "p50_ms": 5211.87,
+    "p90_ms": 9393.63,
+    "p95_ms": 9920.75,
+    "p99_ms": 10438.05,
+    "sample_count": 62815
+  },
+  "streaming_throughput": {},
+  "lsh_anomaly_detection": {
+    "lsh_sample_size": 5000,
+    "lsh_threshold": 0.5,
+    "lsh_num_perm": 128,
+    "lsh_pairs_checked": 24995000,
+    "lsh_anomalous_pairs": 0,
+    "lsh_anomaly_rate": 0.0,
+    "lsh_interpretation": "Anomaly rate within acceptable range; predictions are consistent across similar flights."
+  }
+}

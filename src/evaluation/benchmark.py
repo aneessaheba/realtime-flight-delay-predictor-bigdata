@@ -39,7 +39,12 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 from datasketch import MinHash, MinHashLSH
-from diffprivlib.mechanisms import Laplace
+
+try:
+    from diffprivlib.mechanisms import Laplace as _DPLaplace
+    _USE_DIFFPRIVLIB = True
+except Exception:
+    _USE_DIFFPRIVLIB = False
 
 from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
 from pyspark.sql import SparkSession
@@ -121,8 +126,12 @@ def dp_metric(value: float, epsilon: float = DP_EPSILON, sensitivity: float = DP
     This allows publishing benchmark results publicly without leaking whether
     any individual flight was delayed or on-time in the ground truth labels.
     """
-    mech = Laplace(epsilon=epsilon, sensitivity=sensitivity)
-    noisy = mech.randomise(value)
+    if _USE_DIFFPRIVLIB:
+        mech = _DPLaplace(epsilon=epsilon, sensitivity=sensitivity)
+        noisy = mech.randomise(value)
+    else:
+        scale = sensitivity / epsilon
+        noisy = value + np.random.laplace(0, scale)
     return round(float(np.clip(noisy, 0.0, 1.0)), 4)
 
 
