@@ -36,7 +36,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ingest_bts_to_hdfs")
 
-# ─── Column definitions ───────────────────────────────────────────────────────
+# ─── Column definitions ───
 
 # All columns we care about from the raw BTS CSV
 SELECTED_COLUMNS = [
@@ -271,9 +271,9 @@ def print_data_summary(df) -> None:
     logger.info("=" * 60)
 
 
-# ─── Entry point ──────────────────────────────────────────────────────────────
+# ─── Entry point ───
 
-
+# Makes script reusable because we can change input, output location, and years without editing code
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ingest BTS On-Time Performance CSV data into HDFS as Parquet."
@@ -297,7 +297,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
+# Calls each function in order and stops Spark at the end
 def main() -> None:
     args = parse_args()
     logger.info("Starting BTS ingestion job.")
