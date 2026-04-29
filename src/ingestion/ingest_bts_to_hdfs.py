@@ -9,7 +9,7 @@ Usage:
     spark-submit src/ingestion/ingest_bts_to_hdfs.py \
         --input-path /data/raw/bts \
         --hdfs-path hdfs://hdfs-namenode:9000/data/flights \
-        --years 2018 2019 2020 2021 2022 2023
+        --years 2021 2022 2023
 """
 
 import argparse
@@ -292,8 +292,8 @@ def parse_args() -> argparse.Namespace:
         "--years",
         nargs="+",
         type=int,
-        default=list(range(2018, 2025)),
-        help="Years to ingest (default: 2018-2024).",
+        default=list(range(2021, 2024)),
+        help="Years to ingest (default: 2021-2023).",
     )
     return parser.parse_args()
 
