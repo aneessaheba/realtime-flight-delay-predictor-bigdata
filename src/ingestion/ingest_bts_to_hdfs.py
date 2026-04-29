@@ -227,7 +227,7 @@ def clean_and_transform(df, years: List[int]):
         F.when(F.col("ARR_DELAY") > ARR_DELAY_THRESHOLD, 1).otherwise(0).cast(IntegerType()),
     )
 
-    # Repartition to balance files on HDFS: ~500k rows per partition
+    # Repartition to balance files on HDFS
     total_rows = df.count()
     num_partitions = max(4, int(total_rows / 500_000) + 1)
     df = df.repartition(num_partitions, "YEAR", "MONTH")
