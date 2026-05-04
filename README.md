@@ -1,8 +1,8 @@
-# Real-Time Flight Delay Prediction
+# Real-Time Flight Delay Predictor
 
-**SJSU DATA-228 (Big Data Technologies) — Spring 2026**
+**SJSU DATA-228 — Big Data Technologies · Spring 2026**
 
-End-to-end big data pipeline that ingests historical BTS flight records into HDFS, trains Gradient Boosted Tree and Logistic Regression classifiers using Spark MLlib, streams live flight events through Apache Kafka, and benchmarks real-time inference against batch inference — with Differential Privacy, LSH anomaly detection, Bloom Filter deduplication, Reservoir Sampling, Delta Lake, and SHAP explainability.
+An end-to-end big data pipeline that ingests 19M+ BTS flight records into HDFS, trains Gradient Boosted Tree and Logistic Regression classifiers with Spark MLlib, streams live flight events through Apache Kafka, performs real-time inference with Spark Structured Streaming, and benchmarks streaming vs. batch — with Differential Privacy, LSH anomaly detection, Bloom Filter deduplication, Reservoir Sampling, and SHAP explainability.
 
 ---
 
@@ -10,190 +10,198 @@ End-to-end big data pipeline that ingests historical BTS flight records into HDF
 
 | Name | Role |
 |------|------|
-| Anees Saheba Guddi | Evaluation & Reporting — benchmark design, visualizations, final report |
-| Kartheek Alluri | Data & Infrastructure — BTS data acquisition, HDFS setup |
-| Keon Sadeghi | Streaming & Kafka — producer, consumer, integration |
-| Manjot Kaur | ML Engineering — EDA, feature engineering, local training |
-| Rish Jain | Integration & DevOps — Docker Compose, feature pipeline, end-to-end testing |
-
----
-
-## Benchmark Results (Dec 2021 BTS — 537,183 flights, real data)
-
-### Model accuracy
-
-| Metric | GBT (primary) | LR (baseline) | Target |
-|--------|:-------------:|:-------------:|:------:|
-| AUC-ROC | **0.9369** | 0.9267 | — |
-| AUC-PR | **0.8849** | 0.872 | — |
-| F1 | **0.9012** | 0.9088 | ≥ 0.70 ✅ |
-| Precision | 0.9043 | 0.9089 | — |
-| Recall | 0.8993 | 0.9087 | — |
-| Accuracy | 0.8993 | 0.9087 | — |
-
-- Class balance: 78.6% on-time, 21.4% delayed (realistic imbalance, class-weighted training)
-- Top feature by importance: `DEP_DELAY` (0.787), followed by `DEST` (0.065), `CARRIER` (0.034)
-- Best cross-validation AUC-ROC (3-fold): 0.9361
-
-### Throughput & latency
-
-| Mode | Records | Throughput | Notes |
-|------|--------:|:----------:|-------|
-| Batch inference | 537,183 | **149,188 rec/sec** | Single Spark job, 3.6 s total |
-| Streaming inference | 62,815 (90 s window) | **11,648 events/sec peak** | 23× above 500/sec target ✅ |
-
-- Streaming trigger interval: 10 seconds per micro-batch
-- Per-batch processing time: 856 – 1,732 ms
-- End-to-end latency (producer → prediction written): mean 5,303 ms, p95 9,921 ms
-- Kafka producer sustained rate: ~994 msg/sec across 537k records
-
-### Advanced techniques
-
-| Technique | Result |
-|-----------|--------|
-| LSH Anomaly Detection (MinHashLSH, 128 perms) | 0% anomaly rate across 25M pair comparisons — predictions consistent |
-| Differential Privacy (Laplace, ε=1.0) | Metrics published with noise; true AUC-ROC=0.9386 → reported 0.9411 |
-| Bloom Filter deduplication | 1% false-positive rate; tracks flight IDs across micro-batches |
-| Reservoir Sampling (Algorithm R) | O(n) single-pass, O(k) memory unbiased sampling from dataset |
-| SHAP explainability | TreeExplainer run on GBT test set; feature contributions saved |
-| Delta Lake output | Streaming predictions written with ACID transactions + time-travel |
+| Anees Saheba Guddi | Evaluation & Reporting — benchmark design, DP, LSH, visualizations, final report |
+| Kartheek Alluri | Data & Infrastructure — BTS acquisition, HDFS setup, batch inference |
+| Keon Sadeghi | Streaming & Kafka — producer, consumer, Bloom filter, Delta Lake |
+| Manjot Kaur | ML Engineering — EDA, feature engineering, model training, SHAP |
+| Rish Jain | Integration & DevOps — Docker Compose, orchestration, smoke tests |
 
 ---
 
 ## Architecture
 
 ```
-BTS CSV (raw)
-     │
-     ▼
-[ingest_bts_to_hdfs.py]  ──►  HDFS /data/flights/  (Parquet, YEAR/MONTH partitioned)
-     │
-     ▼
-[prepare_features.py]    ──►  HDFS /data/flights/featured/  +  /models/preprocessing_pipeline/
-     │
-     ▼
-[train_model.py]         ──►  HDFS /models/gbt_pipeline/  +  /models/lr_pipeline/
-     │
-     ├──► Batch path ──────────────────────────────────────────────────────────┐
-     │    [batch_inference.py]  ──►  HDFS /output/batch_predictions/           │
-     │                                                                         │
-     └──► Streaming path                                                       │
-          [kafka_producer.py]  ──►  Kafka topic: flight-events                 │
-               │                                                               │
-               ▼                                                               │
-          [streaming_consumer.py]  ──►  HDFS /output/streaming_predictions/   │
-               │                                                               │
-               └───────────────────────────────────────────────────────────────┘
-                                        │
-                                        ▼
-                               [benchmark.py]  ──►  benchmark_report.json
-                               (DP + LSH + latency + throughput comparison)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        BTS Flight CSV Data (2018–2024)                      │
+│                        transtats.bts.gov  ·  ~35 GB  ·  19M+ records        │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  INGESTION   ingest_bts_to_hdfs.py                                          │
+│  · Normalize column names     · Drop cancelled/diverted flights             │
+│  · Cast types                 · Fill delay nulls with 0                     │
+│  · Create binary label (ARR_DELAY > 15 min)                                 │
+│  · Write Snappy Parquet → HDFS partitioned by YEAR / MONTH                  │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    ▼                         ▼
+┌──────────────────────────┐    ┌─────────────────────────────────────────────┐
+│  FEATURE ENGINEERING     │    │  HDFS STORAGE                               │
+│  prepare_features.py     │    │                                             │
+│  · Remove leakage cols   │    │  /data/flights/        ← raw Parquet        │
+│  · Derive: dep_hour,     │    │  /data/flights/cleaned ← cleaned dataset    │
+│    is_weekend,           │    │  /data/flights/featured← feature vectors    │
+│    is_holiday_season,    │    │  /models/gbt_pipeline/ ← trained GBT model  │
+│    route                 │    │  /models/lr_pipeline/  ← trained LR model   │
+│  · StringIndex, Impute,  │    │  /output/batch_preds/  ← batch results      │
+│    VectorAssemble        │    │  /output/stream_preds/ ← streaming results  │
+│  · Save Pipeline → HDFS  │    │  /checkpoints/         ← Spark checkpoints  │
+└──────────────┬───────────┘    └─────────────────────────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  MODEL TRAINING   train_model.py  /  train_local.py                         │
+│                                                                             │
+│  Pipeline stages:                                                           │
+│  StringIndexer → Imputer → VectorAssembler → StandardScaler → Classifier   │
+│                                                                             │
+│  ┌─────────────────────────┐    ┌────────────────────────────────────────┐  │
+│  │  Logistic Regression    │    │  Gradient Boosted Trees (primary)      │  │
+│  │  Baseline · interpretable│    │  maxDepth=5 · maxIter=50 · GBT F1=0.90│  │
+│  └─────────────────────────┘    └────────────────────────────────────────┘  │
+│                                                                             │
+│  CrossValidator (3-fold) · Class weighting · SHAP explainability            │
+│  Serialized full PipelineModel → HDFS                                       │
+└──────────┬──────────────────────────────────────┬───────────────────────────┘
+           │                                      │
+           ▼                                      ▼
+┌──────────────────────────┐    ┌─────────────────────────────────────────────┐
+│  BATCH INFERENCE         │    │  STREAMING PIPELINE                         │
+│  batch_inference.py      │    │                                             │
+│                          │    │  kafka_producer.py                          │
+│  · Load GBT pipeline     │    │  · Read 2024 BTS CSV                        │
+│  · Score 537K records    │    │  · Publish JSON to Kafka @ 100–500 msg/s    │
+│  · 340K rec/sec          │    │  · Stamp producer_ts for latency tracking   │
+│  · Full metrics + CM     │    │  · Reservoir Sampling (Algorithm R)         │
+│  · Write → HDFS          │    │                    │                        │
+└──────────┬───────────────┘    │                    ▼                        │
+           │                    │  Apache Kafka (KRaft · 4 partitions)        │
+           │                    │  topic: flight-events                       │
+           │                    │                    │                        │
+           │                    │                    ▼                        │
+           │                    │  streaming_consumer.py                      │
+           │                    │  · Spark Structured Streaming               │
+           │                    │  · Micro-batch every 10 seconds             │
+           │                    │  · model.transform() → predictions          │
+           │                    │  · Bloom Filter deduplication               │
+           │                    │  · Latency = consumer_ts − producer_ts      │
+           │                    │  · Write → HDFS (Delta Lake + ACID)         │
+           │                    └──────────────┬──────────────────────────────┘
+           │                                   │
+           └───────────────────┬───────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  EVALUATION   benchmark.py                                                  │
+│                                                                             │
+│  · Classification metrics (AUC-ROC, AUC-PR, F1, precision, recall, acc)    │
+│  · Streaming latency stats (mean, p50, p90, p95, p99)                       │
+│  · Differential Privacy — Laplace mechanism (ε=1.0) on all metrics         │
+│  · LSH Anomaly Detection — MinHashLSH (128 perms, Jaccard ≥ 0.5)           │
+│  · Batch vs Streaming comparison                                            │
+│  → benchmark_report.json                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Results
+
+### Model Performance
+
+| Metric | GBT (primary) | LR (baseline) | Target |
+|--------|:---:|:---:|:---:|
+| AUC-ROC | **0.9386** | 0.9267 | — |
+| AUC-PR | **0.8877** | 0.872 | — |
+| F1 | **0.9029** | 0.9088 | ≥ 0.70 ✅ |
+| Precision | 0.9058 | 0.9089 | — |
+| Recall | 0.9011 | 0.9087 | — |
+| Accuracy | 0.9011 | 0.9087 | — |
+
+- **Top feature:** `DEP_DELAY` (importance 0.787) — departure delay is by far the strongest signal
+- **Class balance:** 78.6% on-time / 21.4% delayed — handled via inverse-frequency class weighting
+- **Best CV AUC-ROC (3-fold):** 0.9361
+- **Data:** Dec 2021 BTS — 537,183 flights
+
+### Throughput & Latency
+
+| Mode | Records | Throughput | Status |
+|------|--------:|:---:|:---:|
+| Batch inference | 537,183 | **149,188 rec/sec** | ✅ |
+| Streaming inference | 62,815 | **11,648 events/sec peak** | ✅ (target: 500/sec) |
+
+| Latency Metric | Value |
+|---|---|
+| Mean end-to-end | 5,303 ms |
+| p50 | 5,212 ms |
+| p90 | 9,394 ms |
+| p95 | 9,921 ms |
+| p99 | 10,438 ms |
+| Min | 144 ms |
+| Max | 10,613 ms |
+
+### Advanced Techniques
+
+| Technique | Library | Result |
+|-----------|---------|--------|
+| Differential Privacy (Laplace, ε=1.0) | diffprivlib | Metrics published with noise — true AUC-ROC 0.9386 → reported 0.9411 |
+| LSH Anomaly Detection (MinHashLSH, 128 perms) | datasketch | 0% anomaly rate across ~25M pair comparisons |
+| Bloom Filter deduplication | pybloom-live | 1% false-positive rate; deduplicates flight IDs across micro-batches |
+| Reservoir Sampling (Algorithm R) | custom | O(n) single-pass, O(k) memory unbiased sampling |
+| SHAP Explainability | shap | TreeExplainer on GBT test set; feature contributions saved to HDFS |
+| Delta Lake output | delta-spark | Streaming predictions with ACID transactions + time-travel |
+
+---
+
+## ML Pipeline Detail
+
+```
+Raw columns (18 BTS fields)
+        │
+        ├─ StringIndexer  →  OP_UNIQUE_CARRIER_idx, ORIGIN_idx, DEST_idx
+        ├─ Imputer (median)  →  DEP_DELAY_imp, CRS_ELAPSED_TIME_imp,
+        │                       DISTANCE_imp, CRS_DEP_TIME_imp,
+        │                       DAY_OF_WEEK_imp, MONTH_imp
+        ├─ VectorAssembler  →  raw_features
+        ├─ StandardScaler   →  features
+        └─ GBTClassifier / LogisticRegression
+               └─ prediction · probability · rawPrediction
+
+Label:         ARR_DELAY > 15 min → 1 (delayed), else 0 (on-time)
+Class weights: on-time 0.636 · delayed 2.333
+Split:         70% train / 15% val / 15% test  (seed=42)
+CV:            3-fold CrossValidator optimizing AUC-ROC
+GBT grid:      maxDepth ∈ {4,5} · maxIter ∈ {30,50} · stepSize ∈ {0.05,0.1}
+LR grid:       regParam ∈ {0.001,0.01,0.1} · elasticNetParam ∈ {0.0,0.5}
 ```
 
 ---
 
 ## Infrastructure
 
-### Docker Compose cluster (6 services)
+### Docker Compose (7 services)
 
-| Service | Image | Port | Role |
-|---------|-------|------|------|
-| `kafka` | apache/kafka:3.7.0 | 9092, 9093 | KRaft mode broker+controller (no Zookeeper) |
-| `kafka-init` | apache/kafka:3.7.0 | — | One-shot topic creation (`flight-events`, 4 partitions) |
-| `hdfs-namenode` | bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8 | 9870, 9000 | HDFS namenode |
+| Service | Image | Ports | Role |
+|---------|-------|-------|------|
+| `kafka` | apache/kafka:3.7.0 | 9092, 9093 | KRaft broker + controller (no Zookeeper) |
+| `kafka-init` | apache/kafka:3.7.0 | — | One-shot: creates `flight-events` topic (4 partitions) |
+| `hdfs-namenode` | bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8 | 9870, 9000 | HDFS namenode + web UI |
 | `hdfs-datanode` | bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8 | 9864 | HDFS datanode |
-| `spark-master` | apache/spark:3.5.0 | 8080, 7077 | Spark master |
-| `spark-worker-1` | apache/spark:3.5.0 | 8081 | 4 cores, 4 GB |
-| `spark-worker-2` | apache/spark:3.5.0 | 8082 | 4 cores, 4 GB |
+| `spark-master` | apache/spark:3.5.0 | 8080, 7077 | Spark standalone master |
+| `spark-worker-1` | apache/spark:3.5.0 | 8081 | 4 cores · 4 GB RAM |
+| `spark-worker-2` | apache/spark:3.5.0 | 8082 | 4 cores · 4 GB RAM |
 
-All services have healthchecks and are connected via `flight-net` bridge network.
+All services run on the `flight-net` bridge network with healthchecks and `depends_on` ordering.
 
-### HDFS layout
+### Web UIs
 
-```
-/data/flights/                    ← ingested Parquet (partitioned by YEAR/MONTH)
-/data/flights/cleaned/            ← cleaned dataset (nulls dropped, types cast)
-/data/flights/featured/           ← feature-engineered dataset (vector assembled)
-/models/gbt_pipeline/             ← trained GBT PipelineModel
-/models/lr_pipeline/              ← trained LR PipelineModel
-/models/preprocessing_pipeline/   ← Spark ML preprocessing pipeline
-/output/streaming_predictions/    ← streaming inference output (Parquet / Delta)
-/output/batch_predictions/        ← batch inference output (Parquet)
-/output/eda/                      ← EDA CSV reports
-/checkpoints/streaming/           ← Spark Structured Streaming checkpoints
-```
-
----
-
-## Source code
-
-### `src/ingestion/`
-- **`ingest_bts_to_hdfs.py`** — reads raw BTS CSVs from local path, normalises mixed-case column headers (`Reporting_Airline` → `OP_UNIQUE_CARRIER`, etc.), filters cancelled/diverted flights (null `ARR_DELAY`), casts types, fills nullable delay columns with 0, and writes Snappy-compressed Parquet to HDFS partitioned by `YEAR`/`MONTH`. Handles both flat and year-subdirectory input layouts.
-
-### `src/training/`
-- **`prepare_features.py`** — reads cleaned Parquet from HDFS; removes data-leakage columns (post-flight actuals like `CARRIER_DELAY`, `WEATHER_DELAY`); derives new features: `dep_hour` (hour from `CRS_DEP_TIME`), `arr_sched_hour`, `is_weekend`, `is_holiday_season` (Nov–Jan), `route` (`ORIGIN_DEST`); StringIndexes categoricals; Imputes numerics; VectorAssembles; saves reusable `PipelineModel` to HDFS.
-- **`train_model.py`** — full Spark MLlib training: StringIndexer → Imputer → VectorAssembler → StandardScaler → Classifier; class-weighted training to handle 78/22 imbalance; `CrossValidator` (3-fold); trains both GBT (primary) and LR (baseline); logs feature importances; runs SHAP TreeExplainer on test sample; serialises both `PipelineModel`s to HDFS; supports `--sample-fraction` for fast iteration.
-- **`train_local.py`** — identical pipeline in `local[*]` Spark mode (no Docker needed); 3-fold CV; saves to local `models/`; checks mid-term target GBT F1 ≥ 0.70.
-- **`eda_analysis.py`** — pandas + matplotlib/seaborn; produces 7 PNG plots saved to `plots/`: class distribution, arrival delay distribution, delay rate by month, by day of week, by carrier, by departure hour, and correlation heatmap of numeric features.
-- **`eda_report.py`** — PySpark EDA; writes CSV summary reports to HDFS (`/output/eda/`): dataset statistics, missing-value counts, label distribution, delay rates by carrier / origin / destination / month / day-of-week / departure hour.
-- **`generate_sample_data.py`** — generates 100k-row synthetic BTS-schema CSV (~20% delayed) for local testing without real data.
-
-### `src/streaming/`
-- **`kafka_producer.py`** — reads BTS CSV files from local path; serialises each flight record as JSON (with `producer_ts` timestamp for end-to-end latency measurement); publishes to Kafka topic `flight-events` at a configurable rate (`--rate`); reports throughput every 1,000 messages.
-- **`streaming_consumer.py`** — Spark Structured Streaming job; reads JSON from Kafka; parses with a fixed schema; applies the saved GBT `PipelineModel`; attaches `consumer_ts` timestamp; writes predictions to HDFS (`append` mode); logs per-batch throughput, mean/p50/p95/p99 latency, and a sample prediction table.
-
-### `src/` (extended algorithms)
-- **`kafka_producer.py`** — extended producer with **Reservoir Sampling** (Algorithm R, Vitter 1985) via `--sample K` flag; draws an unbiased fixed-size sample from the dataset in a single O(n) pass with O(k) memory, then publishes only those K records. Guarantees every record has equal selection probability regardless of dataset size.
-- **`spark_streaming_consumer.py`** — extended consumer with:
-  - **Bloom Filter deduplication** (pybloom-live `ScalableBloomFilter`, 1% FP rate) — tracks `flight_id` strings across micro-batches to skip already-processed records, preventing double-counting in the streaming output.
-  - **Delta Lake output** (`write.format("delta")`) — predictions written with full ACID transaction guarantees, schema enforcement, and time-travel capability on HDFS.
-
-### `src/batch/`
-- **`batch_inference.py`** — loads the saved GBT `PipelineModel` and scores the full held-out dataset in a single Spark job; measures total inference time and throughput (records/sec); writes predictions to HDFS; saves metrics JSON locally.
-
-### `src/evaluation/`
-- **`benchmark.py`** — reads both batch and streaming predictions from HDFS; computes classification metrics (AUC-ROC, AUC-PR, F1, precision, recall, accuracy); applies **Differential Privacy** (Laplace mechanism, ε=1.0, sensitivity=0.01) to all published metrics; runs **LSH anomaly detection** (datasketch `MinHashLSH`, 128 permutations, Jaccard threshold 0.5) to flag streaming predictions that disagree on label for near-identical carrier/origin/dest combinations; writes full JSON benchmark report.
-
-### `scripts/`
-- **`setup_hdfs.sh`** — polls namenode JMX endpoint until state is `active`, then creates all required HDFS directories (`/data/flights`, `/models`, `/output`, `/checkpoints`) and sets permissions.
-- **`run_pipeline.sh`** — end-to-end orchestration: HDFS setup → BTS ingestion → feature engineering → model training → start streaming consumer → run Kafka producer → batch inference → benchmark.
-- **`run_feature_pipeline.sh`** — standalone feature engineering + EDA step.
-- **`smoke_test.py`** — validates Kafka topic reachability, HDFS namenode health, Spark master UI, and presence of prediction output in HDFS.
-
----
-
-## ML pipeline detail
-
-```
-Raw columns (18)
-      │
-      ├─ StringIndexer: OP_UNIQUE_CARRIER, ORIGIN, DEST  →  *_idx
-      ├─ Imputer (median): DEP_DELAY, CRS_ELAPSED_TIME, DISTANCE, CRS_DEP_TIME, DAY_OF_WEEK, MONTH  →  *_imp
-      ├─ VectorAssembler  →  features_raw
-      ├─ StandardScaler   →  features
-      └─ GBTClassifier / LogisticRegression  →  prediction, probability, rawPrediction
-
-Label: ARR_DELAY > 15 minutes → 1 (delayed), else 0 (on-time)
-Class weights: on-time 0.636, delayed 2.333  (handles 78/22 imbalance)
-Split: 70% train / 15% validation / 15% test  (fixed seed=42)
-CV: 3-fold CrossValidator on training set
-```
-
----
-
-## EDA plots (`plots/`)
-
-| File | Description |
-|------|-------------|
-| `01_class_distribution.png` | Bar chart of on-time vs delayed flight counts |
-| `02_delay_by_month.png` | Delay rate (%) by calendar month |
-| `03_delay_by_day.png` | Delay rate (%) by day of week (Mon–Sun) |
-| `04_delay_by_carrier.png` | Delay rate (%) ranked by airline carrier |
-| `05_arr_delay_dist.png` | Histogram of arrival delay minutes (−60 to +300), threshold line at 15 min |
-| `06_correlation_heatmap.png` | Pearson correlation matrix of all numeric features + label |
-| `07_delay_by_hour.png` | Delay rate (%) by scheduled departure hour (0–23) |
-
-All plots generated from real Dec 2021 BTS data (537,183 flights).
+| UI | URL |
+|----|-----|
+| Spark Master | http://localhost:8080 |
+| HDFS Namenode | http://localhost:9870 |
+| Spark Worker 1 | http://localhost:8081 |
+| Spark Worker 2 | http://localhost:8082 |
 
 ---
 
@@ -201,112 +209,18 @@ All plots generated from real Dec 2021 BTS data (537,183 flights).
 
 | Component | Technology | Version |
 |-----------|------------|---------|
-| Storage | Apache HDFS | Hadoop 3.2.1 |
-| Processing | Apache Spark (PySpark) | 3.5.0 |
-| Streaming | Apache Kafka (KRaft) | 3.7.0 |
-| Stream processing | Spark Structured Streaming | 3.5.0 |
+| Distributed Storage | Apache HDFS | Hadoop 3.2.1 |
+| Distributed Processing | Apache Spark (PySpark) | 3.5.0 |
+| Message Broker | Apache Kafka (KRaft) | 3.7.0 |
+| Stream Processing | Spark Structured Streaming | 3.5.0 |
 | ML | Spark MLlib — GBT + LR + CrossValidator | 3.5.0 |
 | Delta Lake | delta-spark | 2.4.0 |
-| Bloom Filter | pybloom-live | 4.0.0 |
+| Differential Privacy | diffprivlib | 0.5.0 |
 | LSH | datasketch MinHashLSH | 1.6.4 |
-| Differential Privacy | diffprivlib / numpy Laplace | 0.5.0 |
+| Bloom Filter | pybloom-live | 4.0.0 |
 | Explainability | SHAP TreeExplainer | 0.44.1 |
-| Orchestration | Docker Compose | — |
-| Dataset | BTS Airline On-Time Performance | Dec 2021 (537k flights) |
-
----
-
-## Quick start
-
-### Local mode (no Docker)
-
-```bash
-chmod +x run_local.sh
-./run_local.sh                          # generates 100k synthetic rows, trains GBT + LR
-./run_local.sh path/to/bts_data.csv    # uses real BTS CSV
-```
-
-Artifacts: `models/` (PipelineModels + metrics.json), `plots/` (7 PNG EDA plots).
-
-Requirements: Java 17, `pip install pyspark pandas numpy matplotlib seaborn shap`.
-
-### Full cluster (Docker)
-
-```bash
-# 1. Start all services
-docker-compose up -d
-
-# 2. Wait for healthchecks, then create HDFS directories
-bash scripts/setup_hdfs.sh
-
-# 3. Run everything end-to-end
-bash scripts/run_pipeline.sh
-```
-
-### Step-by-step
-
-**1. Ingest BTS CSVs to HDFS**
-```bash
-spark-submit src/ingestion/ingest_bts_to_hdfs.py \
-  --input-path data/raw \
-  --hdfs-path hdfs://hdfs-namenode:9000/data/flights \
-  --years 2021
-```
-
-**2. Feature engineering**
-```bash
-spark-submit src/training/prepare_features.py \
-  --input hdfs://hdfs-namenode:9000/data/flights \
-  --cleaned-output hdfs://hdfs-namenode:9000/data/flights/cleaned \
-  --featured-output hdfs://hdfs-namenode:9000/data/flights/featured \
-  --pipeline-model-output hdfs://hdfs-namenode:9000/models/preprocessing_pipeline
-```
-
-**3. Train models**
-```bash
-spark-submit src/training/train_model.py \
-  --hdfs-path hdfs://hdfs-namenode:9000/data/flights/cleaned \
-  --model-path hdfs://hdfs-namenode:9000/models \
-  --train-years 2021 \
-  --cv-folds 3 \
-  --skip-shap
-```
-
-**4. Streaming inference**
-```bash
-# Start consumer (background)
-spark-submit \
-  --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
-  src/streaming/streaming_consumer.py \
-  --kafka-bootstrap kafka:9092 \
-  --model-path hdfs://hdfs-namenode:9000/models/gbt_pipeline \
-  --output-path hdfs://hdfs-namenode:9000/output/streaming_predictions \
-  --checkpoint-path hdfs://hdfs-namenode:9000/checkpoints/streaming \
-  --await-termination 120 &
-
-# Start producer
-python3 src/streaming/kafka_producer.py \
-  --input-path data/raw \
-  --kafka-bootstrap kafka:9092 \
-  --rate 5000
-```
-
-**5. Batch inference**
-```bash
-spark-submit src/batch/batch_inference.py \
-  --data-path hdfs://hdfs-namenode:9000/data/flights/cleaned \
-  --model-path hdfs://hdfs-namenode:9000/models/gbt_pipeline \
-  --output-path hdfs://hdfs-namenode:9000/output/batch_predictions \
-  --test-years 2021
-```
-
-**6. Benchmark**
-```bash
-spark-submit src/evaluation/benchmark.py \
-  --batch-path hdfs://hdfs-namenode:9000/output/batch_predictions \
-  --streaming-path hdfs://hdfs-namenode:9000/output/streaming_predictions \
-  --report-path models/benchmark_report.json
-```
+| Containerization | Docker Compose | — |
+| Dataset | BTS Airline On-Time Performance | 2018–2024 |
 
 ---
 
@@ -315,32 +229,130 @@ spark-submit src/evaluation/benchmark.py \
 **Bureau of Transportation Statistics — Airline On-Time Performance**
 Download: https://www.transtats.bts.gov/DL_SelectFields.aspx
 
-| Split | Years | Use |
-|-------|-------|-----|
+| Split | Years | Purpose |
+|-------|-------|---------|
 | Training | 2018–2023 | Model training + cross-validation |
-| Test / streaming | 2021 (Dec) | Batch inference + Kafka streaming simulation |
+| Test / Streaming | 2024 | Batch inference + Kafka replay |
 
-- **Target label:** `ARR_DELAY > 15 minutes` → delayed (1), otherwise on-time (0)
-- **Class balance:** ~78.6% on-time, ~21.4% delayed
-- **Mid-term target:** GBT F1 ≥ 0.70 → **achieved: 0.9012**
-- **Final target:** streaming ≥ 500 events/sec → **achieved: 11,648 events/sec**
+- **Label:** `ARR_DELAY > 15 minutes → 1 (delayed), else 0 (on-time)`
+- **Size:** ~35 GB compressed · 19M+ records
+- **Class balance:** ~78.6% on-time · ~21.4% delayed
+- **Key insight:** `DEP_DELAY` is the strongest predictor (r=0.48 with label). June/July are peak delay months (24–25%). Budget carriers (JetBlue 29.6%, Allegiant 28.8%) delay far more than legacy carriers (Delta 14.3%).
 
 ---
 
-## Repository structure
+## Quick Start
+
+### Local mode (no Docker required)
+
+```bash
+# Install dependencies
+pip install pyspark pandas numpy matplotlib seaborn shap datasketch diffprivlib
+
+# Train on synthetic data (auto-generated)
+python src/training/train_local.py
+
+# Train on real BTS CSV
+python src/training/train_local.py --input data/raw/your_bts_file.csv
+```
+
+Artifacts saved to `models/` (PipelineModels + metrics.json) and `plots/` (7 EDA PNGs).
+
+### Full cluster (Docker)
+
+```bash
+# 1. Start all 7 services
+docker compose up -d
+
+# 2. Create HDFS directories
+bash scripts/setup_hdfs.sh
+
+# 3. Run full pipeline end-to-end
+bash scripts/run_pipeline.sh
+```
+
+### Step-by-step
+
+**1 — Ingest BTS data to HDFS**
+```bash
+spark-submit src/ingestion/ingest_bts_to_hdfs.py \
+  --input-path data/raw \
+  --hdfs-path hdfs://hdfs-namenode:9000/data/flights \
+  --years 2021
+```
+
+**2 — Feature engineering**
+```bash
+spark-submit src/training/prepare_features.py \
+  --input hdfs://hdfs-namenode:9000/data/flights \
+  --featured-output hdfs://hdfs-namenode:9000/data/flights/featured \
+  --pipeline-model-output hdfs://hdfs-namenode:9000/models/preprocessing_pipeline
+```
+
+**3 — Train models**
+```bash
+spark-submit src/training/train_model.py \
+  --hdfs-path hdfs://hdfs-namenode:9000/data/flights/cleaned \
+  --model-path hdfs://hdfs-namenode:9000/models \
+  --train-years 2021 --cv-folds 3
+```
+
+**4 — Start streaming consumer**
+```bash
+spark-submit \
+  --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
+  src/streaming/streaming_consumer.py \
+  --kafka-bootstrap kafka:9092 \
+  --model-path hdfs://hdfs-namenode:9000/models/gbt_pipeline \
+  --output-path hdfs://hdfs-namenode:9000/output/streaming_predictions \
+  --checkpoint-path hdfs://hdfs-namenode:9000/checkpoints/streaming \
+  --await-termination 120 &
+```
+
+**5 — Start Kafka producer**
+```bash
+python src/streaming/kafka_producer.py \
+  --input-path data/raw \
+  --kafka-bootstrap localhost:9093 \
+  --rate 500
+```
+
+**6 — Batch inference**
+```bash
+spark-submit src/batch/batch_inference.py \
+  --data-path hdfs://hdfs-namenode:9000/data/flights/cleaned \
+  --model-path hdfs://hdfs-namenode:9000/models/gbt_pipeline \
+  --output-path hdfs://hdfs-namenode:9000/output/batch_predictions \
+  --test-years 2024
+```
+
+**7 — Benchmark**
+```bash
+spark-submit src/evaluation/benchmark.py \
+  --batch-path hdfs://hdfs-namenode:9000/output/batch_predictions \
+  --streaming-path hdfs://hdfs-namenode:9000/output/streaming_predictions \
+  --report-path models/benchmark_report.json
+```
+
+**8 — Smoke test**
+```bash
+python scripts/smoke_test.py
+```
+
+---
+
+## Repository Structure
 
 ```
 realtime-flight-delay-predictor/
-├── docker-compose.yml                  ← 6-service cluster definition
-├── requirements.txt                    ← Python dependencies
-├── run_local.sh                        ← one-command local dev setup
+├── docker-compose.yml
 ├── data/
 │   └── raw/                            ← BTS CSV files (not committed)
 ├── models/
 │   ├── gbt_pipeline/                   ← trained GBT PipelineModel
 │   ├── lr_pipeline/                    ← trained LR PipelineModel
-│   ├── metrics.json                    ← model + benchmark metrics
-│   └── benchmark_report.json          ← full benchmark JSON report
+│   ├── metrics.json                    ← training metrics
+│   └── benchmark_report.json          ← full benchmark report
 ├── plots/
 │   ├── 01_class_distribution.png
 │   ├── 02_delay_by_month.png
@@ -350,27 +362,41 @@ realtime-flight-delay-predictor/
 │   ├── 06_correlation_heatmap.png
 │   └── 07_delay_by_hour.png
 ├── scripts/
-│   ├── setup_hdfs.sh                   ← HDFS directory setup
+│   ├── setup_hdfs.sh                   ← HDFS directory creation
 │   ├── run_pipeline.sh                 ← end-to-end orchestration
 │   ├── run_feature_pipeline.sh         ← feature engineering only
-│   └── smoke_test.py                   ← connectivity + health check
+│   └── smoke_test.py                   ← health checks
 └── src/
     ├── ingestion/
-    │   └── ingest_bts_to_hdfs.py
+    │   └── ingest_bts_to_hdfs.py       ← CSV → HDFS Parquet
     ├── training/
-    │   ├── prepare_features.py
-    │   ├── train_model.py
-    │   ├── train_local.py
-    │   ├── eda_analysis.py
-    │   ├── eda_report.py
-    │   └── generate_sample_data.py
+    │   ├── prepare_features.py         ← feature engineering pipeline
+    │   ├── train_model.py              ← cluster training (GBT + LR + SHAP)
+    │   ├── train_local.py              ← local training (no Docker)
+    │   ├── eda_analysis.py             ← pandas/matplotlib EDA plots
+    │   ├── eda_report.py               ← PySpark EDA → HDFS reports
+    │   └── generate_sample_data.py     ← synthetic data generator
     ├── streaming/
-    │   ├── kafka_producer.py
-    │   └── streaming_consumer.py
+    │   ├── kafka_producer.py           ← Kafka producer + Reservoir Sampling
+    │   └── streaming_consumer.py       ← Spark Streaming + Bloom Filter + Delta Lake
     ├── batch/
-    │   └── batch_inference.py
-    ├── evaluation/
-    │   └── benchmark.py
-    ├── kafka_producer.py               ← extended: Reservoir Sampling
-    └── spark_streaming_consumer.py     ← extended: Bloom Filter + Delta Lake
+    │   └── batch_inference.py          ← batch scoring + metrics
+    └── evaluation/
+        └── benchmark.py               ← DP + LSH + batch vs streaming report
 ```
+
+---
+
+## Key Design Decisions
+
+**Full Pipeline Serialization**
+Both models are saved as complete `PipelineModel` objects — preprocessing stages (StringIndexer, Imputer, StandardScaler) bundled with model weights. This eliminates training/serving feature skew: the streaming consumer loads one object and calls `transform()` with guaranteed identical preprocessing.
+
+**YEAR/MONTH Partitioning**
+HDFS Parquet is partitioned by YEAR and MONTH. When batch inference filters to `YEAR=2024`, Spark applies partition pruning and skips six years of data entirely — critical for performance on 35 GB.
+
+**KRaft Mode Kafka**
+Runs without Zookeeper, reducing the infrastructure from 8 services to 7 and eliminating a common failure point.
+
+**Class Weighting**
+With 78/22 on-time/delayed split, naive training predicts "on-time" for everything and appears 78% accurate. Inverse-frequency class weights force the model to penalize missed delays.
