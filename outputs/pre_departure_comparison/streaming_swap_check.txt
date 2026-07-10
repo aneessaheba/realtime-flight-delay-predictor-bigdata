@@ -1,0 +1,4 @@
+Streaming compatibility check:
+- The streaming consumer now derives scheduling-time features (dep_hour, arr_sched_hour, is_weekend, is_holiday_season, route) before applying the trained PipelineModel.
+- This preserves the existing Kafka producer + Structured Streaming consumer architecture and allows swapping in either the full-feature or the new pre-departure-only model artifact without changing the streaming schema contract.
+- The pre-departure model can therefore be used in the streaming path by pointing the consumer to its saved PipelineModel directory (for example, models/pre_departure_comparison/pre_departure/gbt_pipeline).

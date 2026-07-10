@@ -69,6 +69,32 @@ FLIGHT_EVENT_SCHEMA = StructType(
     ]
 )
 
+
+def parse_hhmm_to_hour(col_name: str):
+    padded = F.lpad(F.col(col_name).cast("string"), 4, "0")
+    return F.substring(padded, 1, 2).cast("int")
+
+
+def prepare_streaming_features(df: DataFrame) -> DataFrame:
+    """Derive the scheduling-time features expected by the pre-departure model."""
+    if "CRS_DEP_TIME" in df.columns:
+        df = df.withColumn("dep_hour", parse_hhmm_to_hour("CRS_DEP_TIME"))
+    if "CRS_ARR_TIME" in df.columns:
+        df = df.withColumn("arr_sched_hour", parse_hhmm_to_hour("CRS_ARR_TIME"))
+    if "DAY_OF_WEEK" in df.columns:
+        df = df.withColumn(
+            "is_weekend",
+            F.when(F.col("DAY_OF_WEEK").isin([6, 7]), F.lit(1)).otherwise(F.lit(0)),
+        )
+    if "MONTH" in df.columns:
+        df = df.withColumn(
+            "is_holiday_season",
+            F.when(F.col("MONTH").isin([11, 12]), F.lit(1)).otherwise(F.lit(0)),
+        )
+    if "ORIGIN" in df.columns and "DEST" in df.columns:
+        df = df.withColumn("route", F.concat_ws("_", F.col("ORIGIN"), F.col("DEST")))
+    return df
+
 # ─── Metrics accumulator (driver-side) ───────────────────────────────────────
 
 _metrics: Dict = {
@@ -169,7 +195,8 @@ def make_batch_handler(model: PipelineModel, output_path: str):
             return
 
         # ── 1. Apply ML pipeline ──────────────────────────────────────
-        predictions_df = model.transform(batch_df)
+        prepared_batch_df = prepare_streaming_features(batch_df)
+        predictions_df = model.transform(prepared_batch_df)
 
         # Compute consumer-side timestamp and end-to-end latency
         consumer_ts = time.time()

@@ -7,10 +7,10 @@ from pyspark.sql import types as T
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler
 
-DEFAULT_INPUT = "hdfs://hdfs-namenode:9000/data/flights"
-DEFAULT_CLEANED_OUTPUT = "hdfs://hdfs-namenode:9000/data/flights/cleaned"
-DEFAULT_FEATURED_OUTPUT = "hdfs://hdfs-namenode:9000/data/flights/featured"
-DEFAULT_PIPELINE_MODEL_OUTPUT = "hdfs://hdfs-namenode:9000/models/preprocessing_pipeline"
+DEFAULT_INPUT = "data/raw/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2021_12.csv"
+DEFAULT_CLEANED_OUTPUT = "data/cleaned_local"
+DEFAULT_FEATURED_OUTPUT = "data/featured_local"
+DEFAULT_PIPELINE_MODEL_OUTPUT = "models/preprocessing_pipeline_local"
 
 POSSIBLE_NUMERIC_COLUMNS = [
     "YEAR",
@@ -70,13 +70,75 @@ OPTIONAL_DROP_COLUMNS = [
     "FL_DATE",
 ]
 
+FULL_FEATURE_COLUMNS = [
+    "YEAR",
+    "MONTH",
+    "DAY_OF_MONTH",
+    "DAY_OF_WEEK",
+    "DISTANCE",
+    "CRS_ELAPSED_TIME",
+    "DEP_DELAY",
+    "DEP_DEL15",
+    "dep_hour",
+    "arr_sched_hour",
+    "is_weekend",
+    "is_holiday_season",
+]
+
+PRE_DEPARTURE_FEATURE_COLUMNS = [
+    "MONTH",
+    "DAY_OF_WEEK",
+    "DISTANCE",
+    "CRS_ELAPSED_TIME",
+    "dep_hour",
+    "arr_sched_hour",
+    "is_weekend",
+    "is_holiday_season",
+]
+
+POST_DEPARTURE_EXCLUDED_FEATURES = {"DEP_DELAY", "DEP_DEL15", "TAXI_OUT"}
+
+BTS_COLUMN_MAP = {
+    "Year": "YEAR",
+    "Month": "MONTH",
+    "DayofMonth": "DAY_OF_MONTH",
+    "DayOfWeek": "DAY_OF_WEEK",
+    "Reporting_Airline": "OP_UNIQUE_CARRIER",
+    "Origin": "ORIGIN",
+    "Dest": "DEST",
+    "CRSDepTime": "CRS_DEP_TIME",
+    "DepDelay": "DEP_DELAY",
+    "CRSArrTime": "CRS_ARR_TIME",
+    "ArrDelay": "ARR_DELAY",
+    "CRSElapsedTime": "CRS_ELAPSED_TIME",
+    "Distance": "DISTANCE",
+    "CarrierDelay": "CARRIER_DELAY",
+    "WeatherDelay": "WEATHER_DELAY",
+    "NASDelay": "NAS_DELAY",
+    "SecurityDelay": "SECURITY_DELAY",
+    "LateAircraftDelay": "LATE_AIRCRAFT_DELAY",
+    "TaxiOut": "TAXI_OUT",
+    "DepDel15": "DEP_DEL15",
+    "ArrDel15": "ARR_DEL15",
+}
+
+
 def get_spark(app_name: str) -> SparkSession:
     return (
         SparkSession.builder
         .appName(app_name)
         .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")
+        .config("spark.driver.memory", "2g")
+        .config("spark.executor.memory", "3g")
         .getOrCreate()
     )
+
+
+def normalize_column_names(df: DataFrame) -> DataFrame:
+    for raw_col, standard_col in BTS_COLUMN_MAP.items():
+        if raw_col in df.columns:
+            df = df.withColumnRenamed(raw_col, standard_col)
+    return df
 
 
 def existing_columns(df: DataFrame, cols: List[str]) -> List[str]:
@@ -164,24 +226,23 @@ def clean_dataframe(df: DataFrame) -> DataFrame:
 
     return df
 
-def build_preprocessing_pipeline(df: DataFrame) -> Tuple[Pipeline, List[str], List[str]]:
+def get_feature_columns_for_mode(df: DataFrame, mode: str = "full") -> Tuple[List[str], List[str]]:
     categorical_cols = existing_columns(df, POSSIBLE_CATEGORICAL_COLUMNS + ["route"])
-    numeric_feature_cols = existing_columns(df, [
-        "YEAR",
-        "MONTH",
-        "DAY_OF_MONTH",
-        "DAY_OF_WEEK",
-        "DISTANCE",
-        "CRS_ELAPSED_TIME",
-        "DEP_DELAY",
-        "DEP_DEL15",
-        "dep_hour",
-        "arr_sched_hour",
-        "is_weekend",
-        "is_holiday_season",
-    ])
 
-    numeric_feature_cols = [c for c in numeric_feature_cols if c not in LEAKAGE_COLUMNS]
+    if mode == "pre_departure":
+        numeric_feature_cols = existing_columns(df, PRE_DEPARTURE_FEATURE_COLUMNS)
+    else:
+        numeric_feature_cols = existing_columns(df, FULL_FEATURE_COLUMNS)
+
+    numeric_feature_cols = [
+        c for c in numeric_feature_cols
+        if c not in LEAKAGE_COLUMNS and c not in POST_DEPARTURE_EXCLUDED_FEATURES
+    ]
+    return categorical_cols, numeric_feature_cols
+
+
+def build_preprocessing_pipeline(df: DataFrame, mode: str = "full") -> Tuple[Pipeline, List[str], List[str]]:
+    categorical_cols, numeric_feature_cols = get_feature_columns_for_mode(df, mode=mode)
 
     indexers = [
         StringIndexer(
@@ -225,12 +286,28 @@ def main():
     parser.add_argument("--featured-output", default=DEFAULT_FEATURED_OUTPUT, help="Featured output path")
     parser.add_argument("--pipeline-model-output", default=DEFAULT_PIPELINE_MODEL_OUTPUT, help="Saved preprocessing pipeline model path")
     parser.add_argument("--sample-fraction", type=float, default=1.0, help="Optional sampling fraction for faster testing")
+    parser.add_argument(
+        "--mode",
+        choices=["full", "pre_departure"],
+        default="full",
+        help="Feature set to build: full includes post-departure signals, pre_departure excludes them.",
+    )
     args = parser.parse_args()
 
     spark = get_spark("PrepareBTSFeatures")
 
     print(f"Reading input from: {args.input}")
-    df = spark.read.parquet(args.input)
+    if args.input.endswith(".csv"):
+        df = (
+            spark.read.option("header", "true")
+            .option("inferSchema", "true")
+            .option("nullValue", "")
+            .option("mode", "PERMISSIVE")
+            .csv(args.input)
+        )
+        df = normalize_column_names(df)
+    else:
+        df = spark.read.parquet(args.input)
 
     if args.sample_fraction < 1.0:
         df = df.sample(withReplacement=False, fraction=args.sample_fraction, seed=42)
@@ -252,7 +329,8 @@ def main():
         .parquet(args.cleaned_output)
     )
 
-    pipeline, cat_cols, num_cols = build_preprocessing_pipeline(cleaned_df)
+    pipeline, cat_cols, num_cols = build_preprocessing_pipeline(cleaned_df, mode=args.mode)
+    print("Feature mode:", args.mode)
     print("Categorical feature columns:", cat_cols)
     print("Numeric feature columns:", num_cols)
 
@@ -261,6 +339,10 @@ def main():
 
     keep_cols = [c for c in ["label", "features", "YEAR", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK"] if c in featured_df.columns]
     featured_df = featured_df.select(*keep_cols)
+
+    print("Featured row count:", featured_df.count())
+    print("Featured schema:")
+    featured_df.printSchema()
 
     print(f"Writing featured data to: {args.featured_output}")
     (

@@ -1,0 +1,17 @@
+{
+  "model": "GBTClassifier",
+  "sample_size": 2000,
+  "method": "TreeExplainer (SHAP)",
+  "top_10": {
+    "dep_hour_imp": 0.262133,
+    "OP_UNIQUE_CARRIER_idx": 0.103698,
+    "is_weekend_imp": 0.070009,
+    "MONTH_imp": 0.048732,
+    "arr_sched_hour_imp": 0.044006,
+    "DAY_OF_MONTH_imp": 0.03985,
+    "YEAR_imp": 0.036569,
+    "is_holiday_season_imp": 0.024563,
+    "DAY_OF_WEEK_imp": 0.017641,
+    "ORIGIN_idx": 0.009089
+  }
+}
