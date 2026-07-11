@@ -162,6 +162,7 @@ services:
       SPARK_CONF_DIR: /opt/spark/conf
     volumes:
       - ./src:/opt/spark-apps/src:ro
+      - ./data:/opt/spark-apps/data:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8081/ || exit 1"]
       interval: 15s
@@ -189,6 +190,7 @@ services:
       SPARK_CONF_DIR: /opt/spark/conf
     volumes:
       - ./src:/opt/spark-apps/src:ro
+      - ./data:/opt/spark-apps/data:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8082/ || exit 1"]
       interval: 15s
