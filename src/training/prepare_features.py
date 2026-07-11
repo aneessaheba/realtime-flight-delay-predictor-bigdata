@@ -1,16 +1,30 @@
 import argparse
+import glob
+import json
+import logging
 import os
-from typing import List, Tuple
+import sys
+import time
+from pathlib import Path
+from typing import Dict, List, Tuple
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s – %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("prepare_features")
+
 DEFAULT_INPUT = "data/raw/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2021_12.csv"
 DEFAULT_CLEANED_OUTPUT = "data/cleaned_local"
 DEFAULT_FEATURED_OUTPUT = "data/featured_local"
 DEFAULT_PIPELINE_MODEL_OUTPUT = "models/preprocessing_pipeline_local"
+LOG_DIR = Path("logs")
 
 POSSIBLE_NUMERIC_COLUMNS = [
     "YEAR",
@@ -279,6 +293,73 @@ def drop_non_feature_columns(df: DataFrame) -> DataFrame:
         df = df.drop(c)
     return df
 
+def resolve_input_files(input_path: str) -> List[str]:
+    """Best-effort expansion of the --input argument into concrete file paths, for logging."""
+    if input_path.startswith("hdfs://"):
+        # Can't glob a remote HDFS path from the driver without an extra Hadoop
+        # client call; record the path itself rather than guessing its contents.
+        return [input_path]
+    p = Path(input_path)
+    if p.is_file():
+        return [str(p)]
+    if p.is_dir():
+        files = sorted(str(f) for f in p.rglob("*") if f.is_file() and f.suffix in (".csv", ".parquet"))
+        return files if files else [str(p)]
+    matched = sorted(glob.glob(input_path))
+    return matched if matched else [input_path]
+
+def years_months_covered(df: DataFrame) -> List[str]:
+    """Return the sorted 'YYYY-MM' combinations actually present in df, if YEAR/MONTH exist."""
+    if "YEAR" not in df.columns or "MONTH" not in df.columns:
+        return []
+    rows = df.select("YEAR", "MONTH").distinct().collect()
+    pairs = sorted({(int(r["YEAR"]), int(r["MONTH"])) for r in rows if r["YEAR"] is not None and r["MONTH"] is not None})
+    return [f"{y}-{m:02d}" for y, m in pairs]
+
+def write_prepare_features_log(
+    input_path: str,
+    input_files: List[str],
+    raw_row_count: int,
+    cleaned_row_count: int,
+    featured_row_count: int,
+    covered: List[str],
+    sample_fraction: float,
+    mode: str,
+    cleaned_output: str,
+    featured_output: str,
+    elapsed_seconds: float,
+) -> Path:
+    """
+    Persist per-run feature-prep stats to logs/prepare_features_run_<timestamp>.json
+    so cleaned/featured row counts are always traceable to a concrete run.
+    """
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
+    log_path = LOG_DIR / f"prepare_features_run_{timestamp}.json"
+
+    payload = {
+        "run_timestamp_utc": timestamp,
+        "input_path": input_path,
+        "input_files": input_files,
+        "input_file_count": len(input_files),
+        "raw_row_count": raw_row_count,
+        "cleaned_row_count": cleaned_row_count,
+        "featured_row_count": featured_row_count,
+        "years_months_covered": covered,
+        "sample_fraction": sample_fraction,
+        "mode": mode,
+        "cleaned_output": cleaned_output,
+        "featured_output": featured_output,
+        "elapsed_seconds": round(elapsed_seconds, 2),
+    }
+
+    with log_path.open("w") as fh:
+        json.dump(payload, fh, indent=2)
+
+    logger.info("Feature-prep run log written to %s", log_path)
+    logger.info("Feature-prep run summary: %s", json.dumps(payload, indent=2))
+    return log_path
+
 def main():
     parser = argparse.ArgumentParser(description="Prepare cleaned and feature-engineered BTS data")
     parser.add_argument("--input", default=DEFAULT_INPUT, help="Input Parquet path")
@@ -295,8 +376,12 @@ def main():
     args = parser.parse_args()
 
     spark = get_spark("PrepareBTSFeatures")
+    run_start = time.time()
 
-    print(f"Reading input from: {args.input}")
+    input_files = resolve_input_files(args.input)
+    logger.info("Reading input from: %s", args.input)
+    logger.info("Resolved %d input file(s): %s", len(input_files), input_files)
+
     if args.input.endswith(".csv"):
         df = (
             spark.read.option("header", "true")
@@ -312,16 +397,19 @@ def main():
     if args.sample_fraction < 1.0:
         df = df.sample(withReplacement=False, fraction=args.sample_fraction, seed=42)
 
-    print("Initial row count:", df.count())
-    print("Initial schema:")
+    raw_row_count = df.count()
+    logger.info("Initial row count: %d", raw_row_count)
     df.printSchema()
 
     cleaned_df = clean_dataframe(df)
     cleaned_df = drop_non_feature_columns(cleaned_df)
 
-    print("Cleaned row count:", cleaned_df.count())
+    cleaned_row_count = cleaned_df.count()
+    logger.info("Cleaned row count: %d", cleaned_row_count)
+    covered = years_months_covered(cleaned_df)
+    logger.info("Years/months covered in cleaned output: %s", covered)
 
-    print(f"Writing cleaned data to: {args.cleaned_output}")
+    logger.info("Writing cleaned data to: %s", args.cleaned_output)
     (
         cleaned_df.write
         .mode("overwrite")
@@ -330,9 +418,9 @@ def main():
     )
 
     pipeline, cat_cols, num_cols = build_preprocessing_pipeline(cleaned_df, mode=args.mode)
-    print("Feature mode:", args.mode)
-    print("Categorical feature columns:", cat_cols)
-    print("Numeric feature columns:", num_cols)
+    logger.info("Feature mode: %s", args.mode)
+    logger.info("Categorical feature columns: %s", cat_cols)
+    logger.info("Numeric feature columns: %s", num_cols)
 
     pipeline_model: PipelineModel = pipeline.fit(cleaned_df)
     featured_df = pipeline_model.transform(cleaned_df)
@@ -340,11 +428,11 @@ def main():
     keep_cols = [c for c in ["label", "features", "YEAR", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK"] if c in featured_df.columns]
     featured_df = featured_df.select(*keep_cols)
 
-    print("Featured row count:", featured_df.count())
-    print("Featured schema:")
+    featured_row_count = featured_df.count()
+    logger.info("Featured row count: %d", featured_row_count)
     featured_df.printSchema()
 
-    print(f"Writing featured data to: {args.featured_output}")
+    logger.info("Writing featured data to: %s", args.featured_output)
     (
         featured_df.write
         .mode("overwrite")
@@ -352,10 +440,24 @@ def main():
         .parquet(args.featured_output)
     )
 
-    print(f"Saving pipeline model to: {args.pipeline_model_output}")
+    logger.info("Saving pipeline model to: %s", args.pipeline_model_output)
     pipeline_model.write().overwrite().save(args.pipeline_model_output)
 
-    print("Done.")
+    write_prepare_features_log(
+        input_path=args.input,
+        input_files=input_files,
+        raw_row_count=raw_row_count,
+        cleaned_row_count=cleaned_row_count,
+        featured_row_count=featured_row_count,
+        covered=covered,
+        sample_fraction=args.sample_fraction,
+        mode=args.mode,
+        cleaned_output=args.cleaned_output,
+        featured_output=args.featured_output,
+        elapsed_seconds=time.time() - run_start,
+    )
+
+    logger.info("Done.")
     spark.stop()
 
 if __name__ == "__main__":
