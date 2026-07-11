@@ -288,8 +288,18 @@ def evaluate_model(model, test_df, model_name: str) -> Dict[str, float]:
     )
     f1 = mc_eval.evaluate(predictions, {mc_eval.metricName: "f1"})
     precision = mc_eval.evaluate(predictions, {mc_eval.metricName: "weightedPrecision"})
-    recall = mc_eval.evaluate(predictions, {mc_eval.metricName: "weightedRecall"})
+    weighted_recall = mc_eval.evaluate(predictions, {mc_eval.metricName: "weightedRecall"})
     accuracy = mc_eval.evaluate(predictions, {mc_eval.metricName: "accuracy"})
+
+    # NOTE: Spark's "weightedRecall" is mathematically identical to "accuracy"
+    # (support-weighted average recall always collapses to overall accuracy —
+    # this is a general identity, not a bug). It is NOT the positive-class
+    # ("delayed") recall a reader would expect from a metric named "Recall".
+    # positive_class_recall below is the real tp/(tp+fn) sensitivity for the
+    # delayed class and should be used wherever "recall" is reported.
+    tp = predictions.filter((F.col("prediction") == 1.0) & (F.col(LABEL_COL) == 1.0)).count()
+    fn = predictions.filter((F.col("prediction") == 0.0) & (F.col(LABEL_COL) == 1.0)).count()
+    positive_class_recall = round(tp / (tp + fn), 4) if (tp + fn) > 0 else None
 
     metrics = {
         "model": model_name,
@@ -297,8 +307,11 @@ def evaluate_model(model, test_df, model_name: str) -> Dict[str, float]:
         "auc_pr": round(auc_pr, 4),
         "f1": round(f1, 4),
         "precision": round(precision, 4),
-        "recall": round(recall, 4),
+        "weighted_recall": round(weighted_recall, 4),
         "accuracy": round(accuracy, 4),
+        "positive_class_recall": positive_class_recall,
+        "tp": tp,
+        "fn": fn,
     }
 
     logger.info("=" * 60)
@@ -514,12 +527,12 @@ def main() -> None:
 
         logger.info("=" * 60)
         logger.info("TRAINING SUMMARY")
-        logger.info("%-20s %8s %8s %8s %8s", "Model", "AUC-ROC", "F1", "Prec", "Recall")
-        logger.info("-" * 60)
+        logger.info("%-20s %8s %8s %8s %8s %8s", "Model", "AUC-ROC", "F1", "Prec", "Acc", "PosRecall")
+        logger.info("-" * 68)
         for m in all_metrics:
             logger.info(
-                "%-20s %8.4f %8.4f %8.4f %8.4f",
-                m["model"], m["auc_roc"], m["f1"], m["precision"], m["recall"],
+                "%-20s %8.4f %8.4f %8.4f %8.4f %8.4f",
+                m["model"], m["auc_roc"], m["f1"], m["precision"], m["accuracy"], m["positive_class_recall"],
             )
         logger.info("=" * 60)
         logger.info("Training job completed successfully.")
