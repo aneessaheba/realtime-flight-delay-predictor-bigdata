@@ -1,0 +1,19 @@
+{
+  "run_timestamp_utc": "20260711_001103",
+  "input_path": "data/smoke_test/ingested",
+  "input_files": [
+    "data/smoke_test/ingested/YEAR=2021/MONTH=12/part-00000-ab5ba6b0-b7a8-4e0e-ac1a-3190be3f4b4d.c000.snappy.parquet"
+  ],
+  "input_file_count": 1,
+  "raw_row_count": 537183,
+  "cleaned_row_count": 537183,
+  "featured_row_count": 537183,
+  "years_months_covered": [
+    "2021-12"
+  ],
+  "sample_fraction": 1.0,
+  "mode": "full",
+  "cleaned_output": "data/smoke_test/cleaned",
+  "featured_output": "data/smoke_test/featured",
+  "elapsed_seconds": 8.04
+}

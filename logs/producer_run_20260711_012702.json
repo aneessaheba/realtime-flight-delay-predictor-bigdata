@@ -1,0 +1,17 @@
+{
+  "run_timestamp_utc": "20260711_012702",
+  "status": "success",
+  "error_message": null,
+  "input_path": "data/raw",
+  "csv_files": [
+    "data/raw/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2021_12.csv"
+  ],
+  "requested_sample_size": 5000,
+  "seed": 42,
+  "source_row_count": 551885,
+  "sample_actual_size": 5000,
+  "total_messages_sent": 5000,
+  "topic": "flight-events",
+  "kafka_bootstrap": "localhost:9093",
+  "rate_msg_per_sec": 300.0
+}
