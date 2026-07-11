@@ -144,7 +144,7 @@ def evaluate_predictions(predictions_df, model_name: str = "GBTClassifier") -> D
     precision = mc_eval.evaluate(
         predictions_df, {mc_eval.metricName: "weightedPrecision"}
     )
-    recall = mc_eval.evaluate(
+    weighted_recall = mc_eval.evaluate(
         predictions_df, {mc_eval.metricName: "weightedRecall"}
     )
     accuracy = mc_eval.evaluate(predictions_df, {mc_eval.metricName: "accuracy"})
@@ -163,6 +163,14 @@ def evaluate_predictions(predictions_df, model_name: str = "GBTClassifier") -> D
         (F.col("prediction") == 0.0) & (F.col(LABEL_COL) == 1.0)
     ).count()
 
+    # NOTE: "weighted_recall" above is mathematically identical to "accuracy"
+    # (support-weighted average recall always collapses to overall accuracy —
+    # this is a general identity, not a bug). It is NOT the positive-class
+    # ("delayed") recall a reader would expect from a metric named "Recall".
+    # positive_class_recall is the real tp/(tp+fn) sensitivity for the
+    # delayed class and should be used wherever "recall" is reported.
+    positive_class_recall = round(tp / (tp + fn), 4) if (tp + fn) > 0 else None
+
     metrics = {
         "model": model_name,
         "mode": "batch",
@@ -170,8 +178,9 @@ def evaluate_predictions(predictions_df, model_name: str = "GBTClassifier") -> D
         "auc_pr": round(auc_pr, 4),
         "f1": round(f1, 4),
         "precision": round(precision, 4),
-        "recall": round(recall, 4),
+        "weighted_recall": round(weighted_recall, 4),
         "accuracy": round(accuracy, 4),
+        "positive_class_recall": positive_class_recall,
         "tp": tp,
         "tn": tn,
         "fp": fp,
@@ -180,12 +189,13 @@ def evaluate_predictions(predictions_df, model_name: str = "GBTClassifier") -> D
 
     logger.info("=" * 60)
     logger.info("Batch Inference Metrics – %s", model_name)
-    logger.info("  AUC-ROC   : %.4f", auc_roc)
-    logger.info("  AUC-PR    : %.4f", auc_pr)
-    logger.info("  F1        : %.4f", f1)
-    logger.info("  Precision : %.4f", precision)
-    logger.info("  Recall    : %.4f", recall)
-    logger.info("  Accuracy  : %.4f", accuracy)
+    logger.info("  AUC-ROC              : %.4f", auc_roc)
+    logger.info("  AUC-PR               : %.4f", auc_pr)
+    logger.info("  F1                   : %.4f", f1)
+    logger.info("  Precision            : %.4f", precision)
+    logger.info("  Weighted Recall      : %.4f  (== accuracy, see note above)", weighted_recall)
+    logger.info("  Accuracy             : %.4f", accuracy)
+    logger.info("  Positive-class Recall: %s", positive_class_recall)
     logger.info("  TP=%d  TN=%d  FP=%d  FN=%d", tp, tn, fp, fn)
     logger.info("=" * 60)
 
