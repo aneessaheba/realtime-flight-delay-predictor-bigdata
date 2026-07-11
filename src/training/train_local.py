@@ -305,14 +305,27 @@ def evaluate_model(model, test_df, model_name: str) -> Dict:
         labelCol=LABEL_COL, predictionCol="prediction"
     )
 
+    # NOTE: Spark's "weightedRecall" is mathematically identical to "accuracy"
+    # (support-weighted average recall always collapses to overall accuracy —
+    # this is a general identity, not a bug). It is NOT the positive-class
+    # ("delayed") recall a reader would expect from a metric named "Recall".
+    # positive_class_recall below is the real tp/(tp+fn) sensitivity for the
+    # delayed class and should be used wherever "recall" is reported.
+    tp = preds.filter((F.col("prediction") == 1.0) & (F.col(LABEL_COL) == 1.0)).count()
+    fn = preds.filter((F.col("prediction") == 0.0) & (F.col(LABEL_COL) == 1.0)).count()
+    positive_class_recall = round(tp / (tp + fn), 4) if (tp + fn) > 0 else None
+
     metrics = {
         "model": model_name,
-        "auc_roc":   round(binary_eval.evaluate(preds, {binary_eval.metricName: "areaUnderROC"}), 4),
-        "auc_pr":    round(binary_eval.evaluate(preds, {binary_eval.metricName: "areaUnderPR"}), 4),
-        "f1":        round(mc_eval.evaluate(preds, {mc_eval.metricName: "f1"}), 4),
-        "precision": round(mc_eval.evaluate(preds, {mc_eval.metricName: "weightedPrecision"}), 4),
-        "recall":    round(mc_eval.evaluate(preds, {mc_eval.metricName: "weightedRecall"}), 4),
-        "accuracy":  round(mc_eval.evaluate(preds, {mc_eval.metricName: "accuracy"}), 4),
+        "auc_roc":              round(binary_eval.evaluate(preds, {binary_eval.metricName: "areaUnderROC"}), 4),
+        "auc_pr":               round(binary_eval.evaluate(preds, {binary_eval.metricName: "areaUnderPR"}), 4),
+        "f1":                   round(mc_eval.evaluate(preds, {mc_eval.metricName: "f1"}), 4),
+        "precision":            round(mc_eval.evaluate(preds, {mc_eval.metricName: "weightedPrecision"}), 4),
+        "weighted_recall":      round(mc_eval.evaluate(preds, {mc_eval.metricName: "weightedRecall"}), 4),
+        "accuracy":             round(mc_eval.evaluate(preds, {mc_eval.metricName: "accuracy"}), 4),
+        "positive_class_recall": positive_class_recall,
+        "tp": tp,
+        "fn": fn,
     }
 
     logger.info("=" * 60)
@@ -432,14 +445,14 @@ def main() -> None:
         # ── 4. Summary ───────────────────────────────────────────────
         logger.info("\n" + "=" * 60)
         logger.info("FINAL TRAINING SUMMARY")
-        logger.info("%-22s %8s %8s %8s %8s %8s",
-                    "Model", "AUC-ROC", "AUC-PR", "F1", "Prec", "Recall")
-        logger.info("-" * 66)
+        logger.info("%-22s %8s %8s %8s %8s %8s %8s",
+                    "Model", "AUC-ROC", "AUC-PR", "F1", "Prec", "Acc", "PosRecall")
+        logger.info("-" * 76)
         for m in all_metrics:
             logger.info(
-                "%-22s %8.4f %8.4f %8.4f %8.4f %8.4f",
+                "%-22s %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f",
                 m["model"], m["auc_roc"], m["auc_pr"],
-                m["f1"], m["precision"], m["recall"],
+                m["f1"], m["precision"], m["accuracy"], m["positive_class_recall"],
             )
         logger.info("=" * 60)
 
