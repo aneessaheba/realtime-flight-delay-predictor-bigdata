@@ -1,4 +1,9 @@
 """
+DEPRECATED — not invoked by scripts/run_pipeline.sh or any other entry point.
+The canonical consumer is src/streaming/streaming_consumer.py (10s trigger).
+Kept here for reference only (e.g. its Bloom filter / Delta Lake write path);
+do not run this file expecting it to reflect current pipeline behavior.
+
 spark_streaming_consumer.py  –  Kartheek Alluri (Weeks 7-8)
 Spark Structured Streaming job that consumes flight events from Kafka,
 runs the saved ML Pipeline on each micro-batch, and writes predictions

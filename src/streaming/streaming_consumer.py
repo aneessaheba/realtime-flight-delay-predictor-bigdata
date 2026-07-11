@@ -1,6 +1,15 @@
 """
 streaming_consumer.py
 ---------------------
+CANONICAL streaming consumer — this is the only Spark Structured Streaming
+consumer invoked by scripts/run_pipeline.sh (see the start_streaming_consumer
+step) and the only one that should be used or modified. Default trigger
+interval is 10 seconds (see --trigger-interval below), matching the value
+recorded in models/metrics.json and README.md. An older, unused duplicate
+previously lived at src/spark_streaming_consumer.py (5s trigger default);
+it has been moved to deprecated/spark_streaming_consumer.py and is not wired
+into any entry point.
+
 PySpark Structured Streaming consumer that reads flight events from Kafka,
 applies the trained GBT Pipeline, and writes predictions to HDFS while
 printing throughput and latency statistics.
