@@ -1,4 +1,10 @@
 """
+DEPRECATED — not invoked by scripts/run_pipeline.sh or any other entry point.
+The canonical producer is src/streaming/kafka_producer.py, which now includes
+this file's reservoir-sampling logic (Algorithm R), fixed to use a seeded
+`random.Random(seed)` instance instead of the unseeded global `random`
+module used below. Kept here for reference only; do not run this file.
+
 kafka_producer.py  –  Kartheek Alluri (Weeks 7-8, swapped from Keon)
 Replays 2024 BTS Airline On-Time Performance data as simulated live
 flight-departure events, publishing each flight as a JSON message to
