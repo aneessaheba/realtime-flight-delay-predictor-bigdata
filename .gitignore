@@ -6,3 +6,4 @@ local_parquet_out/
 __pycache__/
 *.pyc
 .DS_Store
+.venv/
