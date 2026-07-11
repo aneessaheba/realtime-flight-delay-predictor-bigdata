@@ -20,10 +20,18 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      # NOTE: EXTERNAL must bind+advertise on 9093 to match the "9093:9093"
+      # host port mapping above (and every client's bootstrap.servers=localhost:9093
+      # throughout this repo). CONTROLLER (KRaft's internal Raft protocol,
+      # not a client-facing API — it does not implement METADATA/PRODUCE/etc.)
+      # previously occupied 9093 instead, so every Kafka client that connected
+      # to "localhost:9093" was actually hitting the controller port and got
+      # rejected. Moved CONTROLLER to 9099 (container-internal only, no host
+      # port mapping needed since this is a single self-voting KRaft node).
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9099,EXTERNAL://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9099
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
