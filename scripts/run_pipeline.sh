@@ -25,6 +25,8 @@
 #   KAFKA_BOOTSTRAP     - Kafka bootstrap server            (localhost:9093)
 #   KAFKA_TOPIC         - Kafka topic name                  (flight-events)
 #   PRODUCER_RATE       - Kafka producer rate (msg/s)       (100)
+#   PRODUCER_SAMPLE_SIZE - Reservoir sample size (0=full)   (250000)
+#   PRODUCER_SEED       - Reservoir sampling RNG seed       (42)
 #   TRAIN_YEARS         - Space-separated list of years     (2018 2019 2020 2021 2022 2023)
 #   TEST_YEARS          - Space-separated list of test yrs  (2024)
 #   LOG_DIR             - Directory for log files           (./logs)
@@ -43,6 +45,8 @@ SPARK_MASTER="${SPARK_MASTER:-spark://spark-master:7077}"
 KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP:-localhost:9093}"
 KAFKA_TOPIC="${KAFKA_TOPIC:-flight-events}"
 PRODUCER_RATE="${PRODUCER_RATE:-100}"
+PRODUCER_SAMPLE_SIZE="${PRODUCER_SAMPLE_SIZE:-250000}"
+PRODUCER_SEED="${PRODUCER_SEED:-42}"
 TRAIN_YEARS="${TRAIN_YEARS:-2018 2019 2020 2021 2022 2023}"
 TEST_YEARS="${TEST_YEARS:-2024}"
 LOG_DIR="${LOG_DIR:-./logs}"
@@ -293,6 +297,8 @@ run_kafka_producer() {
         --kafka-bootstrap "${KAFKA_BOOTSTRAP}" \
         --topic "${KAFKA_TOPIC}" \
         --rate "${PRODUCER_RATE}" \
+        --sample-size "${PRODUCER_SAMPLE_SIZE}" \
+        --seed "${PRODUCER_SEED}" \
         2>&1 | tee "${LOG_DIR}/kafka_producer.log"
 
     log "Producer log saved to ${LOG_DIR}/kafka_producer.log"
