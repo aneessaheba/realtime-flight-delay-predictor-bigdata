@@ -138,7 +138,10 @@ def dp_metric(value: float, epsilon: float = DP_EPSILON, sensitivity: float = DP
 def apply_dp_to_metrics(metrics: Dict[str, Any], epsilon: float = DP_EPSILON) -> Dict[str, Any]:
     """Return a copy of metrics with Laplace noise applied to scalar float fields."""
     dp_metrics = dict(metrics)
-    dp_fields = {"auc_roc", "auc_pr", "f1", "precision", "recall", "accuracy"}
+    dp_fields = {
+        "auc_roc", "auc_pr", "f1", "precision",
+        "weighted_recall", "accuracy", "positive_class_recall",
+    }
     for field in dp_fields:
         if field in dp_metrics and isinstance(dp_metrics[field], float):
             original = dp_metrics[field]
@@ -294,12 +297,23 @@ def compute_classification_metrics(df, mode_name: str) -> Dict[str, Any]:
             metrics["precision"] = round(
                 mc_eval.evaluate(df, {mc_eval.metricName: "weightedPrecision"}), 4
             )
-            metrics["recall"] = round(
+            # NOTE: Spark's "weightedRecall" is mathematically identical to
+            # "accuracy" (support-weighted average recall always collapses to
+            # overall accuracy — a general identity, not a bug). It is NOT the
+            # positive-class ("delayed") recall a reader would expect from a
+            # metric named "Recall"; positive_class_recall below (tp/(tp+fn))
+            # is the real sensitivity for the delayed class.
+            metrics["weighted_recall"] = round(
                 mc_eval.evaluate(df, {mc_eval.metricName: "weightedRecall"}), 4
             )
             metrics["accuracy"] = round(
                 mc_eval.evaluate(df, {mc_eval.metricName: "accuracy"}), 4
             )
+            tp = df.filter((F.col("prediction") == 1.0) & (F.col(LABEL_COL) == 1.0)).count()
+            fn = df.filter((F.col("prediction") == 0.0) & (F.col(LABEL_COL) == 1.0)).count()
+            metrics["positive_class_recall"] = round(tp / (tp + fn), 4) if (tp + fn) > 0 else None
+            metrics["tp"] = tp
+            metrics["fn"] = fn
         except Exception as exc:
             logger.warning("[%s] Multi-class evaluation failed: %s", mode_name, exc)
 
@@ -400,7 +414,7 @@ def compute_throughput_stats(streaming_df) -> Dict[str, Any]:
 
 def compare_metrics(batch_metrics: Dict, streaming_metrics: Dict) -> Dict[str, Any]:
     comparison: Dict[str, Any] = {}
-    for key in ["auc_roc", "auc_pr", "f1", "precision", "recall", "accuracy"]:
+    for key in ["auc_roc", "auc_pr", "f1", "precision", "weighted_recall", "accuracy", "positive_class_recall"]:
         b = batch_metrics.get(key)
         s = streaming_metrics.get(key)
         if b is not None and s is not None:
@@ -442,12 +456,12 @@ def print_report(report: Dict) -> None:
         return " " * indent + f"{label:<38} {val}"
 
     print("\n[BATCH INFERENCE METRICS]")
-    for k in ["record_count", "auc_roc", "auc_pr", "f1", "precision", "recall", "accuracy"]:
+    for k in ["record_count", "auc_roc", "auc_pr", "f1", "precision", "weighted_recall", "accuracy", "positive_class_recall"]:
         if k in report["batch_metrics"]:
             print(_fmt(k, report["batch_metrics"][k]))
 
     print("\n[STREAMING INFERENCE METRICS]")
-    for k in ["record_count", "auc_roc", "auc_pr", "f1", "precision", "recall", "accuracy"]:
+    for k in ["record_count", "auc_roc", "auc_pr", "f1", "precision", "weighted_recall", "accuracy", "positive_class_recall"]:
         if k in report["streaming_metrics"]:
             print(_fmt(k, report["streaming_metrics"][k]))
 
@@ -459,7 +473,7 @@ def print_report(report: Dict) -> None:
             print(_fmt(f"streaming_{k}_dp", dp[k]))
 
     print("\n[BATCH vs STREAMING COMPARISON (streaming - batch)]")
-    for key in ["auc_roc", "auc_pr", "f1", "precision", "recall", "accuracy"]:
+    for key in ["auc_roc", "auc_pr", "f1", "precision", "weighted_recall", "accuracy", "positive_class_recall"]:
         delta_key = f"{key}_delta"
         if delta_key in report["metric_comparison"]:
             sign = "+" if report["metric_comparison"][delta_key] >= 0 else ""
