@@ -51,6 +51,17 @@ OUTPUT_DIR="${OUTPUT_DIR:-./output}"
 # spark-submit packages for Kafka connector
 KAFKA_PACKAGE="org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0"
 
+# Executor memory for all spark-submit steps below.
+# MUST stay under docker-compose.yml's SPARK_WORKER_MEMORY (currently 4g per
+# worker, see docker-compose.yml:160,187). A single Spark standalone executor
+# has to fit entirely within one worker's memory budget, and the worker JVM
+# itself needs headroom on top of the executor's own heap, so 3g leaves ~1g
+# of slack. Raise this only in lockstep with SPARK_WORKER_MEMORY, and only
+# after confirming the Docker Desktop VM (not just the host) has enough RAM
+# allocated to it — `docker info` reports the VM's memory limit, which can be
+# smaller than the physical host RAM.
+SPARK_EXECUTOR_MEMORY="${SPARK_EXECUTOR_MEMORY:-3g}"
+
 # Flags
 SKIP_INGEST=false
 SKIP_TRAINING=false
@@ -170,7 +181,7 @@ ingest_data() {
         --master "${SPARK_MASTER}" \
         --deploy-mode client \
         --driver-memory 4g \
-        --executor-memory 6g \
+        --executor-memory "${SPARK_EXECUTOR_MEMORY}" \
         --executor-cores 4 \
         --conf spark.sql.shuffle.partitions=200 \
         --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
@@ -200,7 +211,7 @@ train_models() {
         --master "${SPARK_MASTER}" \
         --deploy-mode client \
         --driver-memory 4g \
-        --executor-memory 8g \
+        --executor-memory "${SPARK_EXECUTOR_MEMORY}" \
         --executor-cores 4 \
         --conf spark.sql.shuffle.partitions=200 \
         --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
@@ -230,7 +241,7 @@ start_streaming_consumer() {
         --master "${SPARK_MASTER}" \
         --deploy-mode client \
         --driver-memory 4g \
-        --executor-memory 6g \
+        --executor-memory "${SPARK_EXECUTOR_MEMORY}" \
         --executor-cores 4 \
         --packages "${KAFKA_PACKAGE}" \
         --conf spark.sql.shuffle.partitions=50 \
@@ -313,7 +324,7 @@ run_batch_inference() {
         --master "${SPARK_MASTER}" \
         --deploy-mode client \
         --driver-memory 4g \
-        --executor-memory 6g \
+        --executor-memory "${SPARK_EXECUTOR_MEMORY}" \
         --executor-cores 4 \
         --conf spark.sql.shuffle.partitions=200 \
         --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
@@ -344,7 +355,7 @@ run_benchmark() {
         --master "${SPARK_MASTER}" \
         --deploy-mode client \
         --driver-memory 4g \
-        --executor-memory 4g \
+        --executor-memory "${SPARK_EXECUTOR_MEMORY}" \
         --executor-cores 2 \
         --conf spark.hadoop.fs.defaultFS=hdfs://hdfs-namenode:9000 \
         src/evaluation/benchmark.py \
