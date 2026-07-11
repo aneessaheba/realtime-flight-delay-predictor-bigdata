@@ -13,11 +13,14 @@ Usage:
 """
 
 import argparse
+import glob
+import json
 import logging
 import os
 import sys
 import time
-from typing import List
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -93,6 +96,7 @@ NULLABLE_DELAY_COLS = [
 ]
 
 ARR_DELAY_THRESHOLD = 15.0  # minutes
+LOG_DIR = Path("logs")
 
 # BTS CSVs from different download periods use mixed-case column names.
 # This map normalises them to the uppercase standard used throughout the project.
@@ -174,10 +178,15 @@ def read_raw_csv(spark: SparkSession, csv_paths: List[str]):
     return df
 
 
-def clean_and_transform(df, years: List[int]):
+def clean_and_transform(df, years: List[int]) -> Tuple[object, Dict]:
     """
     Select relevant columns, cast types, fill nulls, create label column,
     and filter to requested years.
+
+    Returns (cleaned_df, stats) where `stats` records row counts at each
+    cleaning stage plus the actual (YEAR, MONTH) combinations present in the
+    output, so every ingestion run is traceable back to exactly what data
+    produced it.
     """
     # Keep only the columns that exist in this dataset
     available = set(df.columns)
@@ -237,7 +246,24 @@ def clean_and_transform(df, years: List[int]):
         total_rows,
         num_partitions,
     )
-    return df
+
+    year_months = sorted(
+        {
+            (row["YEAR"], row["MONTH"])
+            for row in df.select("YEAR", "MONTH").distinct().collect()
+        }
+    )
+    logger.info("Years/months covered in cleaned output: %s", year_months)
+
+    stats = {
+        "rows_before_arr_delay_filter": before_count,
+        "rows_dropped_null_arr_delay": before_count - after_count,
+        "rows_after_arr_delay_filter": after_count,
+        "cleaned_row_count": total_rows,
+        "num_output_partitions": num_partitions,
+        "years_months_covered": [f"{y}-{m:02d}" for y, m in year_months],
+    }
+    return df, stats
 
 
 def write_to_hdfs(df, hdfs_path: str) -> None:
@@ -269,6 +295,58 @@ def print_data_summary(df) -> None:
         df.select(F.min("YEAR"), F.max("YEAR")).collect()[0],
     )
     logger.info("=" * 60)
+
+
+def resolve_actual_csv_files(input_path: str, years: List[int]) -> List[str]:
+    """Expand the glob patterns from resolve_csv_paths() into concrete file paths, for logging."""
+    if input_path.startswith("hdfs://"):
+        # Can't glob a remote HDFS path from the driver's local filesystem;
+        # record the pattern strings themselves rather than an empty list.
+        return resolve_csv_paths(input_path, years)
+    files: List[str] = []
+    for pattern in resolve_csv_paths(input_path, years):
+        local_pattern = pattern[len("file://"):] if pattern.startswith("file://") else pattern
+        files.extend(sorted(glob.glob(local_pattern)))
+    return sorted(set(files))
+
+
+def write_ingestion_log(
+    input_path: str,
+    csv_files: List[str],
+    years_requested: List[int],
+    raw_row_count: int,
+    clean_stats: Dict,
+    hdfs_path: str,
+    elapsed_seconds: float,
+) -> Path:
+    """
+    Persist per-run ingestion stats (input files, raw row count, cleaned row
+    count, years/months actually covered) to logs/ingest_run_<timestamp>.json
+    so every future ingestion run is traceable back to concrete numbers
+    instead of being estimated after the fact.
+    """
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
+    log_path = LOG_DIR / f"ingest_run_{timestamp}.json"
+
+    payload = {
+        "run_timestamp_utc": timestamp,
+        "input_path": input_path,
+        "input_files": csv_files,
+        "input_file_count": len(csv_files),
+        "years_requested": years_requested,
+        "raw_row_count": raw_row_count,
+        "hdfs_output_path": hdfs_path,
+        "elapsed_seconds": round(elapsed_seconds, 2),
+        **clean_stats,
+    }
+
+    with log_path.open("w") as fh:
+        json.dump(payload, fh, indent=2)
+
+    logger.info("Ingestion run log written to %s", log_path)
+    logger.info("Ingestion run summary: %s", json.dumps(payload, indent=2))
+    return log_path
 
 
 # ─── Entry point ───
@@ -306,13 +384,31 @@ def main() -> None:
     logger.info("  Years      : %s", args.years)
 
     spark = build_spark_session()
+    run_start = time.time()
 
     try:
         csv_paths = resolve_csv_paths(args.input_path, args.years)
+        csv_files = resolve_actual_csv_files(args.input_path, args.years)
+        logger.info("Resolved %d input CSV file(s): %s", len(csv_files), csv_files)
+
         raw_df = read_raw_csv(spark, csv_paths)
-        clean_df = clean_and_transform(raw_df, args.years)
+        raw_row_count = raw_df.count()
+        logger.info("Raw row count (post-parse, pre-clean): %d", raw_row_count)
+
+        clean_df, clean_stats = clean_and_transform(raw_df, args.years)
         print_data_summary(clean_df)
         write_to_hdfs(clean_df, args.hdfs_path)
+
+        write_ingestion_log(
+            input_path=args.input_path,
+            csv_files=csv_files,
+            years_requested=args.years,
+            raw_row_count=raw_row_count,
+            clean_stats=clean_stats,
+            hdfs_path=args.hdfs_path,
+            elapsed_seconds=time.time() - run_start,
+        )
+
         logger.info("Ingestion completed successfully.")
     except Exception as exc:
         logger.exception("Ingestion failed: %s", exc)
