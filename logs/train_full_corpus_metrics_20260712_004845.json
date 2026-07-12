@@ -1,0 +1,56 @@
+{
+  "hdfs_path": "hdfs://hdfs-namenode:9000/full_corpus_2021_2023/data/flights",
+  "train_years": [
+    2021,
+    2022,
+    2023
+  ],
+  "sample_fraction": 1.0,
+  "cv_folds": 5,
+  "total_rows": 19153634,
+  "class_weights": {
+    "0": 0.6174777990341836,
+    "1": 2.6280616597801187
+  },
+  "split_ratios": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "split_sizes": {
+    "train": 13407699,
+    "val": 2871997,
+    "test": 2873938
+  },
+  "elapsed_seconds": 2572.87,
+  "metrics": [
+    {
+      "model": "GBTClassifier",
+      "auc_roc": 0.9368,
+      "auc_pr": 0.8809,
+      "f1": 0.9128,
+      "precision": 0.9157,
+      "weighted_recall": 0.9109,
+      "accuracy": 0.9109,
+      "positive_class_recall": 0.8234,
+      "tp": 450423,
+      "fn": 96591,
+      "tn": 2167590,
+      "fp": 159334
+    },
+    {
+      "model": "LogisticRegression",
+      "auc_roc": 0.9287,
+      "auc_pr": 0.8736,
+      "f1": 0.9212,
+      "precision": 0.9213,
+      "weighted_recall": 0.9212,
+      "accuracy": 0.9212,
+      "positive_class_recall": 0.7953,
+      "tp": 435029,
+      "fn": 111985,
+      "tn": 2212326,
+      "fp": 114598
+    }
+  ]
+}
