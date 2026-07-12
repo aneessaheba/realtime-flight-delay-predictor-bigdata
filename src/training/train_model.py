@@ -38,6 +38,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
+from pyspark import StorageLevel
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import GBTClassifier, LogisticRegression
 from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
@@ -264,7 +265,11 @@ def train_with_cv(pipeline, param_grid, train_df, num_folds: int = 2):
         evaluator=evaluator,
         numFolds=num_folds,
         seed=RANDOM_SEED,
-        parallelism=2,
+        # parallelism=1 (sequential folds): with parallelism=2, two folds
+        # would fit concurrently, roughly doubling peak memory demand during
+        # CV. On a memory-constrained cluster (observed OOM crash-looping at
+        # 19M rows even before CV started) this isn't worth the speedup.
+        parallelism=1,
     )
     logger.info("Starting cross-validated training (%d folds) …", num_folds)
     start = time.time()
@@ -505,11 +510,23 @@ def main() -> None:
 
         class_weights = compute_class_weights(df)
         df = add_class_weights(df, class_weights)
-        df.cache()
+        total_rows = df.count()
 
         train_df, val_df, test_df = split_data(df)
-        train_df.cache()
-        test_df.cache()
+        # MEMORY_AND_DISK (.cache()) still tries memory first and was observed
+        # to OOM-crash-loop the executors on a 19M-row run (repeated SIGKILL /
+        # exit 137 as the OS-level VM memory ceiling was hit, not just Spark's
+        # own executor-memory setting — the Docker Desktop VM's total budget
+        # is shared across HDFS/Kafka/Spark daemons plus both executors).
+        # DISK_ONLY trades speed for reliability here: no in-memory caching
+        # pressure at all, at the cost of slower reads during CV.
+        train_df.persist(StorageLevel.DISK_ONLY)
+        test_df.persist(StorageLevel.DISK_ONLY)
+        split_sizes = {
+            "train": train_df.count(),
+            "val": val_df.count(),
+            "test": test_df.count(),
+        }
 
         preprocessing_stages = build_preprocessing_stages()
         all_metrics = []
@@ -547,6 +564,23 @@ def main() -> None:
             )
         logger.info("=" * 60)
         logger.info("Training job completed successfully.")
+
+        if args.metrics_json:
+            summary = {
+                "hdfs_path": args.hdfs_path,
+                "train_years": args.train_years,
+                "sample_fraction": args.sample_fraction,
+                "cv_folds": args.cv_folds,
+                "total_rows": total_rows,
+                "class_weights": {str(k): v for k, v in class_weights.items()},
+                "split_ratios": {"train": TRAIN_RATIO, "val": VAL_RATIO, "test": TEST_RATIO},
+                "split_sizes": split_sizes,
+                "elapsed_seconds": round(time.time() - run_start, 2),
+                "metrics": all_metrics,
+            }
+            with open(args.metrics_json, "w") as fh:
+                json.dump(summary, fh, indent=2)
+            logger.info("Run summary saved to %s", args.metrics_json)
 
     except Exception as exc:
         logger.exception("Training job failed: %s", exc)
