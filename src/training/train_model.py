@@ -299,6 +299,8 @@ def evaluate_model(model, test_df, model_name: str) -> Dict[str, float]:
     # delayed class and should be used wherever "recall" is reported.
     tp = predictions.filter((F.col("prediction") == 1.0) & (F.col(LABEL_COL) == 1.0)).count()
     fn = predictions.filter((F.col("prediction") == 0.0) & (F.col(LABEL_COL) == 1.0)).count()
+    tn = predictions.filter((F.col("prediction") == 0.0) & (F.col(LABEL_COL) == 0.0)).count()
+    fp = predictions.filter((F.col("prediction") == 1.0) & (F.col(LABEL_COL) == 0.0)).count()
     positive_class_recall = round(tp / (tp + fn), 4) if (tp + fn) > 0 else None
 
     metrics = {
@@ -312,6 +314,8 @@ def evaluate_model(model, test_df, model_name: str) -> Dict[str, float]:
         "positive_class_recall": positive_class_recall,
         "tp": tp,
         "fn": fn,
+        "tn": tn,
+        "fp": fp,
     }
 
     logger.info("=" * 60)
@@ -472,6 +476,12 @@ def parse_args() -> argparse.Namespace:
         help="Fraction of data to sample before training (e.g. 0.20 for 20%%). "
              "Default 1.0 uses all data. Uses fixed seed for reproducibility."
     )
+    parser.add_argument(
+        "--metrics-json",
+        default=None,
+        help="Local path to save a JSON summary of this run (class weights, "
+             "split sizes, and per-model metrics). Not written if omitted.",
+    )
     return parser.parse_args()
 
 
@@ -485,6 +495,7 @@ def main() -> None:
     logger.info("  CV folds         : %d", args.cv_folds)
 
     spark = build_spark_session()
+    run_start = time.time()
 
     try:
         df = load_data(spark, args.hdfs_path, args.train_years)
