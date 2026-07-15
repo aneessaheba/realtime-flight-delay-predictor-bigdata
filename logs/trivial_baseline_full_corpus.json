@@ -1,0 +1,16 @@
+{
+  "description": "Trivial rule baseline (predict delayed whenever DEP_DELAY > 15 min) evaluated on the identical 70/15/15 test split (seed=42) used for the Phase 3 full-corpus GBT/LR retrain.",
+  "total_test_rows": 2873938,
+  "tp": 435959,
+  "fn": 111055,
+  "tn": 2213386,
+  "fp": 113538,
+  "accuracy": 0.9219,
+  "precision": 0.7934,
+  "positive_class_recall": 0.797,
+  "f1": 0.7952,
+  "comparison": {
+    "gbt_full_corpus": {"accuracy": 0.9109, "f1": 0.9128, "positive_class_recall": 0.8234},
+    "lr_full_corpus": {"accuracy": 0.9212, "f1": 0.9212, "positive_class_recall": 0.797}
+  }
+}
