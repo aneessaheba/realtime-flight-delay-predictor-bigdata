@@ -1,0 +1,5 @@
+model,mode,auc_roc,auc_pr,f1,precision,weighted_recall,accuracy,positive_class_recall
+gbt,full,0.9376,0.8817,0.913,0.9159,0.9112,0.9112,0.8239
+gbt,pre_departure,0.6962,0.3627,0.6841,0.7719,0.6476,0.6476,0.6335
+lr,full,0.9267,0.8675,0.9219,0.922,0.9219,0.9219,0.797
+lr,pre_departure,0.5884,0.2307,0.5295,0.7423,0.4828,0.4828,0.7117
