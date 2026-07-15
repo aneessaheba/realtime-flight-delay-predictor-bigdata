@@ -1,0 +1,14 @@
+{
+  "n": 8000,
+  "mean_ms": 33072.32,
+  "stddev_ms": 13776.47,
+  "min_ms": 10317.96,
+  "max_ms": 56605.45,
+  "p50_ms": 32652.39,
+  "p90_ms": 53115.97,
+  "p95_ms": 54815.25,
+  "p99_ms": 56292.31,
+  "p999_ms": 56605.45,
+  "p99_to_p95_ratio": 1.027,
+  "notes": "Real per-record latency_ms trace captured from a live producer->Kafka->streaming_consumer.py run (8000-event reservoir sample, seed=7, Dec 2021 data, 10s trigger interval). Histogram shows a clear staircase/multi-modal pattern with ~9-10s-wide humps separated by near-empty buckets, consistent with the trigger-interval/backlog-drain mechanics of Spark Structured Streaming micro-batching -- NOT a heavy-tailed anomaly. No evidence of the paper's claimed p99=375s / ~60x-p95 blowup was found; this run's p99/p95 ratio is ~1.03x."
+}
