@@ -137,6 +137,19 @@ def load_data(spark: SparkSession, input_path: str) -> SparkSession:
     df = df.filter(F.col("ARR_DELAY").isNotNull())
     df = df.withColumn(LABEL_COL, F.when(F.col("ARR_DELAY") > DELAY_THRESHOLD, F.lit(1.0)).otherwise(F.lit(0.0)))
 
+    # DEP_DEL15 is a raw BTS CSV column (present only when reading directly
+    # from the original CSV with BTS_COLUMN_MAP renaming). ingest_bts_to_hdfs.py's
+    # cleaned Parquet output never includes it, so run_mode()'s "full" feature
+    # list (which references DEP_DEL15 unconditionally) crashed the Imputer
+    # stage with "DEP_DEL15 does not exist" on any Parquet input. Derive it
+    # here using the same >15-minute convention already used for LABEL_COL,
+    # rather than the raw BTS ">=15" definition, so it's self-consistent with
+    # the rest of this file.
+    if "DEP_DEL15" not in df.columns and "DEP_DELAY" in df.columns:
+        df = df.withColumn(
+            "DEP_DEL15", F.when(F.col("DEP_DELAY") > DELAY_THRESHOLD, F.lit(1.0)).otherwise(F.lit(0.0))
+        )
+
     numeric_cols = [
         "YEAR",
         "MONTH",
