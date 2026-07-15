@@ -112,9 +112,12 @@ def add_time_features(df):
 
 def load_data(spark: SparkSession, input_path: str) -> SparkSession:
     logger.info("Loading data from %s", input_path)
-    if input_path.endswith(".parquet") or os.path.isdir(input_path):
-        df = spark.read.parquet(input_path)
-    else:
+    # os.path.isdir() only resolves local paths -- it can never recognize an
+    # hdfs:// directory as Parquet, which silently misrouted any HDFS Parquet
+    # input into the CSV branch below. Detect CSV explicitly instead and
+    # treat everything else (local dirs, .parquet files, hdfs:// dirs) as
+    # Parquet, which is what every actual caller in this repo passes.
+    if input_path.endswith(".csv"):
         df = (
             spark.read.option("header", "true")
             .option("inferSchema", "true")
@@ -125,6 +128,8 @@ def load_data(spark: SparkSession, input_path: str) -> SparkSession:
         for raw, std in BTS_COLUMN_MAP.items():
             if raw in df.columns:
                 df = df.withColumnRenamed(raw, std)
+    else:
+        df = spark.read.parquet(input_path)
 
     if "ARR_DELAY" not in df.columns:
         raise ValueError("Input data must include ARR_DELAY to create the delay label.")
