@@ -1,0 +1,68 @@
+{
+  "mode": "pre_departure",
+  "feature_columns": {
+    "categorical": [
+      "OP_UNIQUE_CARRIER",
+      "ORIGIN",
+      "DEST",
+      "route"
+    ],
+    "numeric": [
+      "YEAR",
+      "MONTH",
+      "DAY_OF_MONTH",
+      "DAY_OF_WEEK",
+      "DISTANCE",
+      "CRS_ELAPSED_TIME",
+      "dep_hour",
+      "arr_sched_hour",
+      "is_weekend",
+      "is_holiday_season"
+    ]
+  },
+  "metrics": {
+    "gbt": {
+      "model": "GBTClassifier",
+      "auc_roc": 0.6962,
+      "auc_pr": 0.3627,
+      "f1": 0.6841,
+      "precision": 0.7719,
+      "weighted_recall": 0.6476,
+      "accuracy": 0.6476,
+      "positive_class_recall": 0.6335,
+      "tp": 346535,
+      "fn": 200479
+    },
+    "lr": {
+      "model": "LogisticRegression",
+      "auc_roc": 0.5884,
+      "auc_pr": 0.2307,
+      "f1": 0.5295,
+      "precision": 0.7423,
+      "weighted_recall": 0.4828,
+      "accuracy": 0.4828,
+      "positive_class_recall": 0.7117,
+      "tp": 389332,
+      "fn": 157682
+    }
+  },
+  "shap": {
+    "gbt": {
+      "model": "GBTClassifier",
+      "sample_size": 2000,
+      "method": "TreeExplainer (SHAP)",
+      "top_10": {
+        "OP_UNIQUE_CARRIER_idx": 0.196296,
+        "arr_sched_hour_imp": 0.148053,
+        "CRS_ELAPSED_TIME_imp": 0.102457,
+        "YEAR_imp": 0.079248,
+        "is_weekend_imp": 0.061924,
+        "MONTH_imp": 0.036629,
+        "dep_hour_imp": 0.0272,
+        "ORIGIN_idx": 0.026087,
+        "DAY_OF_MONTH_imp": 0.023127,
+        "DISTANCE_imp": 0.02248
+      }
+    }
+  }
+}
