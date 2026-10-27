@@ -41,15 +41,9 @@ plt.rcParams.update({
     "axes.spines.right": False,
 })
 
-# Border / fill per box kind, matching generate_architecture.py.
-C = {
-    "data":   ("#8a8a8a", "#ececec"),
-    "ingest": ("#3a9e7e", "#d6efe8"),
-    "model":  ("#7b6fc4", "#e2dff5"),
-    "batch":  ("#5b7fc4", "#d9e4f5"),
-    "stream": ("#b08530", "#f5ebcf"),
-    "eval":   ("#c0675a", "#f5ddd9"),
-}
+# The diagram is plain black on white in a Times-style serif, to match the paper's text.
+DIAGRAM_FONT = {"font.family": "serif", "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+                "mathtext.fontset": "stix"}
 HEATMAP_LABELS = {
     "DAY_OF_WEEK": "DAY_OF_WEEK", "CRS_DEP_TIME": "CRS_DEP_TIME", "DEP_DELAY": "DEP_DELAY",
     "TAXI_OUT": "TAXI_OUT", "CRS_ELAPSED_TIME": "CRS_ELAPSED", "DISTANCE": "DISTANCE",
@@ -64,25 +58,29 @@ def save(fig, out_dir: str, name: str) -> None:
     print(f"  Saved: {path}")
 
 
-def box(ax, x, y, w, h, kind, title, lines):
-    border, fill = C[kind]
-    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0,rounding_size=0.08",
-                                linewidth=1.0, edgecolor=border, facecolor=fill, zorder=3))
+def box(ax, x, y, w, h, title, lines):
+    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="square,pad=0",
+                                linewidth=0.7, edgecolor="black", facecolor="white", zorder=3))
     top = y + h - 0.16
-    ax.text(x + w / 2, top, title, fontsize=7, fontweight="bold", color=border,
+    ax.text(x + w / 2, top, title, fontsize=7.5, fontweight="bold", color="black",
             ha="center", va="center", zorder=4)
     for i, line in enumerate(lines):
-        ax.text(x + w / 2, top - 0.19 - i * 0.155, line, fontsize=6, color="#333333",
+        ax.text(x + w / 2, top - 0.19 - i * 0.155, line, fontsize=6.5, color="black",
                 ha="center", va="center", zorder=4)
 
 
 def arrow(ax, x1, y1, x2, y2):
     ax.annotate("", xy=(x2, y2), xytext=(x1, y1), zorder=5,
-                arrowprops=dict(arrowstyle="-|>", color="#555555", lw=0.9, mutation_scale=8,
+                arrowprops=dict(arrowstyle="-|>", color="black", lw=0.7, mutation_scale=7,
                                 shrinkA=0, shrinkB=0))
 
 
 def plot_architecture(out_dir: str) -> None:
+    with plt.rc_context(DIAGRAM_FONT):
+        _draw_architecture(out_dir)
+
+
+def _draw_architecture(out_dir: str) -> None:
     # Numbers are from logs/train_chronological_full_corpus.json,
     # logs/batch_chrono_gbt_*.json and logs/streaming_eval_2024_trigger0s.json.
     fig, ax = plt.subplots(figsize=(TEXT_W, 3.0))
@@ -90,25 +88,25 @@ def plot_architecture(out_dir: str) -> None:
     ax.set_ylim(0.2, 3.2)
     ax.axis("off")
 
-    box(ax, 0.05, 2.35, 1.35, 0.8, "data", "BTS on-time data",
+    box(ax, 0.05, 2.35, 1.35, 0.8, "BTS on-time data",
         ["2021–23: 19.15M flights", "2024: held-out year"])
-    box(ax, 1.6, 2.35, 1.6, 0.8, "ingest", "Ingestion (PySpark)",
+    box(ax, 1.6, 2.35, 1.6, 0.8, "Ingestion (PySpark)",
         ["label: ARR_DELAY > 15 min", "Parquet on HDFS"])
-    box(ax, 3.4, 2.35, 1.65, 0.8, "model", "Training",
+    box(ax, 3.4, 2.35, 1.65, 0.8, "Training",
         ["GBT + LR, split by month", "params and τ set on val."])
-    box(ax, 5.25, 2.35, 1.7, 0.8, "model", "Serialized pipeline",
+    box(ax, 5.25, 2.35, 1.7, 0.8, "Serialized pipeline",
         ["feature SQL → index → impute", "→ assemble → scale → GBT", "test AUC-ROC 0.968"])
 
-    box(ax, 1.6, 1.35, 2.6, 0.7, "batch", "Batch inference",
-        ["19.15M rows at 270K records/s", "full 2024: AUC-ROC 0.968"])
+    box(ax, 1.6, 1.35, 2.6, 0.7, "Batch inference",
+        ["2021–23: 19.15M rows at 270K/s", "full 2024 (6.97M): AUC-ROC 0.968"])
 
-    box(ax, 0.05, 0.25, 1.35, 0.8, "stream", "Kafka producer",
+    box(ax, 0.05, 0.25, 1.35, 0.8, "Kafka producer",
         ["250K 2024 flights", "reservoir-sampled", "~360 events/s"])
-    box(ax, 1.6, 0.25, 3.0, 0.8, "stream", "Structured Streaming consumer",
+    box(ax, 1.6, 0.25, 3.0, 0.8, "Structured Streaming consumer",
         ["Bloom-filter dedup · micro-batches", "2024 AUC-ROC 0.968 · F1 (pos.) 0.866",
          "latency p50 2.2 s · p99 6.3 s"])
 
-    box(ax, 5.35, 0.25, 1.6, 1.8, "eval", "Evaluation",
+    box(ax, 5.35, 0.25, 1.6, 1.8, "Evaluation",
         ["accuracy vs. realized", "2024 outcomes", "batch/stream parity", "(max |Δp| = 0.0)",
          "latency distribution", "DP metric release", "LSH consistency check"])
 
