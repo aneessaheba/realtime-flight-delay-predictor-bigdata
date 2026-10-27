@@ -22,22 +22,34 @@ Usage:
         --topic flight-events \
         --model-path hdfs://hdfs-namenode:9000/models/gbt_pipeline \
         --output-path hdfs://hdfs-namenode:9000/output/streaming_predictions \
-        --checkpoint-path hdfs://hdfs-namenode:9000/checkpoints/streaming
+        --checkpoint-path hdfs://hdfs-namenode:9000/checkpoints/streaming \
+        --batch-log /tmp/streaming_batches.jsonl
+
+The model artifact is expected to contain its own feature derivation as its
+first stage (see FEATURE_SQL in src/training/train_chronological.py), so this
+consumer passes raw event columns straight to model.transform().
+
+Latency: latency_ms in the prediction Parquet is producer publish -> batch
+start (queueing only). --batch-log records, per batch, the wall-clock time the
+HDFS write finished; end-to-end latency per record is
+write_done_ts - producer_ts, joined on batch_id.
 """
 
 import argparse
+import json
 import logging
 import sys
 import time
 from datetime import datetime
 from typing import Dict
 
+from pybloom_live import ScalableBloomFilter
+
 from pyspark.ml import PipelineModel
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
     DoubleType,
-    IntegerType,
     LongType,
     StringType,
     StructField,
@@ -54,18 +66,22 @@ logger = logging.getLogger("streaming_consumer")
 
 # ─── Schema for incoming Kafka JSON messages ──────────────────────────────────
 
+# Every numeric field is DoubleType: kafka_producer.py sends all numerics as
+# JSON floats (e.g. 1430.0), and from_json yields NULL for a float value in an
+# IntegerType field.
 FLIGHT_EVENT_SCHEMA = StructType(
     [
-        StructField("YEAR", IntegerType(), True),
-        StructField("MONTH", IntegerType(), True),
-        StructField("DAY_OF_MONTH", IntegerType(), True),
+        StructField("YEAR", DoubleType(), True),
+        StructField("MONTH", DoubleType(), True),
+        StructField("DAY_OF_MONTH", DoubleType(), True),
         StructField("DAY_OF_WEEK", DoubleType(), True),
         StructField("OP_UNIQUE_CARRIER", StringType(), True),
         StructField("ORIGIN", StringType(), True),
         StructField("DEST", StringType(), True),
         StructField("CRS_DEP_TIME", DoubleType(), True),
         StructField("DEP_DELAY", DoubleType(), True),
-        StructField("CRS_ARR_TIME", IntegerType(), True),
+        StructField("TAXI_OUT", DoubleType(), True),
+        StructField("CRS_ARR_TIME", DoubleType(), True),
         StructField("ARR_DELAY", DoubleType(), True),
         StructField("CRS_ELAPSED_TIME", DoubleType(), True),
         StructField("DISTANCE", DoubleType(), True),
@@ -79,30 +95,49 @@ FLIGHT_EVENT_SCHEMA = StructType(
 )
 
 
-def parse_hhmm_to_hour(col_name: str):
-    padded = F.lpad(F.col(col_name).cast("string"), 4, "0")
-    return F.substring(padded, 1, 2).cast("int")
+# ─── Bloom filter deduplication (driver-side) ────────────────────────────────
+
+# Flight identity: date + carrier + origin + destination + scheduled departure.
+FLIGHT_KEY_COLS = ["YEAR", "MONTH", "DAY_OF_MONTH", "OP_UNIQUE_CARRIER", "ORIGIN", "DEST", "CRS_DEP_TIME"]
+BLOOM_ERROR_RATE = 0.01
+
+_bloom = ScalableBloomFilter(
+    initial_capacity=100_000,
+    error_rate=BLOOM_ERROR_RATE,
+    mode=ScalableBloomFilter.SMALL_SET_GROWTH,
+)
+_bloom_stats = {"seen": 0, "dropped_within_batch": 0, "dropped_seen_before": 0}
 
 
-def prepare_streaming_features(df: DataFrame) -> DataFrame:
-    """Derive the scheduling-time features expected by the pre-departure model."""
-    if "CRS_DEP_TIME" in df.columns:
-        df = df.withColumn("dep_hour", parse_hhmm_to_hour("CRS_DEP_TIME"))
-    if "CRS_ARR_TIME" in df.columns:
-        df = df.withColumn("arr_sched_hour", parse_hhmm_to_hour("CRS_ARR_TIME"))
-    if "DAY_OF_WEEK" in df.columns:
-        df = df.withColumn(
-            "is_weekend",
-            F.when(F.col("DAY_OF_WEEK").isin([6, 7]), F.lit(1)).otherwise(F.lit(0)),
-        )
-    if "MONTH" in df.columns:
-        df = df.withColumn(
-            "is_holiday_season",
-            F.when(F.col("MONTH").isin([11, 12]), F.lit(1)).otherwise(F.lit(0)),
-        )
-    if "ORIGIN" in df.columns and "DEST" in df.columns:
-        df = df.withColumn("route", F.concat_ws("_", F.col("ORIGIN"), F.col("DEST")))
-    return df
+def bloom_deduplicate(batch_df: DataFrame):
+    """
+    Drop events whose flight key was already scored, within this micro-batch
+    (exact) or in an earlier one (Bloom filter, ~1% false-positive rate).
+
+    Every key dropped as "seen before" is either a genuine replay or a Bloom
+    false positive; the counters are logged per batch so the realised rate
+    can be measured against a replay known to contain no duplicates.
+
+    Returns (deduplicated frame, number of rows kept). Uses a single collect
+    of the keys, so it adds one Spark job per batch.
+    """
+    keyed = batch_df.withColumn("_flight_key", F.concat_ws("|", *[F.col(c) for c in FLIGHT_KEY_COLS]))
+    all_keys = [row["_flight_key"] for row in keyed.select("_flight_key").collect()]
+    keys = list(dict.fromkeys(all_keys))
+
+    seen_before = [k for k in keys if k in _bloom]
+    for k in keys:
+        _bloom.add(k)
+
+    _bloom_stats["seen"] += len(all_keys)
+    _bloom_stats["dropped_within_batch"] += len(all_keys) - len(keys)
+    _bloom_stats["dropped_seen_before"] += len(seen_before)
+    if len(keys) < len(all_keys):
+        keyed = keyed.dropDuplicates(["_flight_key"])
+    if seen_before:
+        keyed = keyed.filter(~F.col("_flight_key").isin(seen_before))
+    return keyed.drop("_flight_key"), len(keys) - len(seen_before)
+
 
 # ─── Metrics accumulator (driver-side) ───────────────────────────────────────
 
@@ -143,6 +178,27 @@ def load_pipeline(model_path: str) -> PipelineModel:
     model = PipelineModel.load(model_path)
     logger.info("Pipeline model loaded successfully.")
     return model
+
+
+def warm_up(spark: SparkSession, model: PipelineModel, output_path: str, rounds: int = 3) -> None:
+    """
+    Score and write one synthetic event a few times before the stream starts,
+    so JVM/codegen warm-up and the first HDFS write are not paid by the first
+    real micro-batch. The warm-up output goes to a separate path.
+    """
+    event = {
+        "YEAR": 2024.0, "MONTH": 1.0, "DAY_OF_MONTH": 1.0, "DAY_OF_WEEK": 1.0,
+        "OP_UNIQUE_CARRIER": "AA", "ORIGIN": "JFK", "DEST": "LAX",
+        "CRS_DEP_TIME": 900.0, "DEP_DELAY": 0.0, "TAXI_OUT": 15.0, "CRS_ARR_TIME": 1200.0,
+        "ARR_DELAY": 0.0, "CRS_ELAPSED_TIME": 360.0, "DISTANCE": 2475.0,
+        "producer_ts": time.time(),
+    }
+    row = {f.name: event.get(f.name) for f in FLIGHT_EVENT_SCHEMA.fields}
+    df = spark.createDataFrame([row], schema=FLIGHT_EVENT_SCHEMA)
+    for i in range(rounds):
+        start = time.time()
+        model.transform(df).select("prediction").write.mode("overwrite").parquet(f"{output_path}_warmup")
+        logger.info("Warm-up round %d: %.0f ms", i + 1, (time.time() - start) * 1000.0)
 
 
 # ─── Stream reading ───────────────────────────────────────────────────────────
@@ -187,7 +243,7 @@ def parse_kafka_messages(raw_df: DataFrame) -> DataFrame:
 # ─── foreachBatch handler ─────────────────────────────────────────────────────
 
 
-def make_batch_handler(model: PipelineModel, output_path: str):
+def make_batch_handler(model: PipelineModel, output_path: str, batch_log_path: str = None):
     """
     Return a foreachBatch function that:
       1. Applies the ML pipeline to the micro-batch.
@@ -199,13 +255,14 @@ def make_batch_handler(model: PipelineModel, output_path: str):
     def process_batch(batch_df: DataFrame, batch_id: int) -> None:
         batch_start = time.time()
 
-        if batch_df.rdd.isEmpty():
-            logger.info("Batch %d is empty – skipping.", batch_id)
+        # ── 1. Deduplicate, then apply the ML pipeline ────────────────
+        raw_batch_df = batch_df.persist()
+        deduped_df, batch_count = bloom_deduplicate(raw_batch_df)
+        if batch_count == 0:
+            logger.info("Batch %d has no new events – skipping.", batch_id)
+            raw_batch_df.unpersist()
             return
-
-        # ── 1. Apply ML pipeline ──────────────────────────────────────
-        prepared_batch_df = prepare_streaming_features(batch_df)
-        predictions_df = model.transform(prepared_batch_df)
+        predictions_df = model.transform(deduped_df)
 
         # Compute consumer-side timestamp and end-to-end latency
         consumer_ts = time.time()
@@ -237,7 +294,10 @@ def make_batch_handler(model: PipelineModel, output_path: str):
             "ORIGIN",
             "DEST",
             "CRS_DEP_TIME",
+            "CRS_ARR_TIME",
+            "CRS_ELAPSED_TIME",
             "DEP_DELAY",
+            "TAXI_OUT",
             "ARR_DELAY",
             "DISTANCE",
             "prediction",
@@ -248,55 +308,32 @@ def make_batch_handler(model: PipelineModel, output_path: str):
             "latency_ms",
         )
 
-        # ── 2. Write to HDFS ─────────────────────────────────────────
+        # ── 2. Write to HDFS (the only job that runs the model) ──────
         (
             output_df.write.mode("append")
             .option("compression", "snappy")
             .parquet(output_path)
         )
+        write_done_ts = time.time()
 
-        # ── 3. Console preview ───────────────────────────────────────
-        logger.info("Batch %d – sample predictions:", batch_id)
-        output_df.select(
-            "ORIGIN", "DEST", "OP_UNIQUE_CARRIER",
-            "DEP_DELAY", "ARR_DELAY", "prediction",
-            "latency_ms",
-        ).show(5, truncate=False)
-
-        # ── 4. Metrics ───────────────────────────────────────────────
-        batch_count = output_df.count()
-        batch_elapsed_ms = (time.time() - batch_start) * 1000.0
-
-        latency_stats = output_df.select(
-            F.mean("latency_ms").alias("mean_latency_ms"),
-            F.percentile_approx("latency_ms", 0.50).alias("p50_latency_ms"),
-            F.percentile_approx("latency_ms", 0.95).alias("p95_latency_ms"),
-            F.percentile_approx("latency_ms", 0.99).alias("p99_latency_ms"),
-        ).collect()
-
-        if latency_stats:
-            stats = latency_stats[0]
-            logger.info(
-                "Batch %d | events: %d | processing: %.1f ms | "
-                "latency mean/p50/p95/p99: %.1f/%.1f/%.1f/%.1f ms",
-                batch_id,
-                batch_count,
-                batch_elapsed_ms,
-                stats["mean_latency_ms"] or 0,
-                stats["p50_latency_ms"] or 0,
-                stats["p95_latency_ms"] or 0,
-                stats["p99_latency_ms"] or 0,
-            )
-
-        throughput = batch_count / (batch_elapsed_ms / 1000.0) if batch_elapsed_ms > 0 else 0
+        # Per-record latency and prediction statistics are computed offline
+        # from the written Parquet (src/evaluation/evaluate_streaming.py);
+        # computing them here would add Spark jobs to every micro-batch.
         logger.info(
-            "Batch %d | throughput: %.1f events/sec | "
-            "delayed predictions: %d / %d",
-            batch_id,
-            throughput,
-            output_df.filter(F.col("prediction") == 1.0).count(),
-            batch_count,
+            "Batch %d | events: %d | start -> HDFS write done: %.1f ms",
+            batch_id, batch_count, (write_done_ts - batch_start) * 1000.0,
         )
+
+        if batch_log_path:
+            with open(batch_log_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({
+                    "batch_id": batch_id,
+                    "events": batch_count,
+                    "batch_start_ts": batch_start,
+                    "write_done_ts": write_done_ts,
+                    "bloom": dict(_bloom_stats),
+                }) + "\n")
+        raw_batch_df.unpersist()
 
     return process_batch
 
@@ -339,6 +376,17 @@ def parse_args() -> argparse.Namespace:
         help="Spark Structured Streaming trigger interval (default: '10 seconds').",
     )
     parser.add_argument(
+        "--warmup-rounds",
+        type=int,
+        default=3,
+        help="Synthetic score+write rounds before the stream starts (0 disables).",
+    )
+    parser.add_argument(
+        "--batch-log",
+        default=None,
+        help="Local JSONL path for per-batch write-completion times (end-to-end latency).",
+    )
+    parser.add_argument(
         "--await-termination",
         type=int,
         default=0,
@@ -362,12 +410,14 @@ def main() -> None:
     try:
         # Load the trained model once on the driver
         model = load_pipeline(args.model_path)
+        if args.warmup_rounds > 0:
+            warm_up(spark, model, args.output_path, args.warmup_rounds)
 
         # Build the streaming pipeline
         raw_stream = read_kafka_stream(spark, args.kafka_bootstrap, args.topic)
         parsed_stream = parse_kafka_messages(raw_stream)
 
-        batch_handler = make_batch_handler(model, args.output_path)
+        batch_handler = make_batch_handler(model, args.output_path, args.batch_log)
 
         query = (
             parsed_stream.writeStream.foreachBatch(batch_handler)
