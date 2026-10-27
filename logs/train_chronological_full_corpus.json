@@ -1,0 +1,395 @@
+{
+  "input": "hdfs://hdfs-namenode:9000/full_corpus_v2/data/flights",
+  "sample_fraction": 1.0,
+  "split": {
+    "type": "chronological (calendar month)",
+    "train_months": "start .. 2023-03 (exclusive)",
+    "val_months": "2023-03 .. 2023-08 (exclusive)",
+    "test_months": "2023-08 .. end",
+    "sizes": {
+      "train": 13430175,
+      "val": 2845073,
+      "test": 2878386
+    },
+    "delayed_rate": {
+      "train": 0.1867,
+      "val": 0.2334,
+      "test": 0.1644
+    }
+  },
+  "class_weights_from_train": {
+    "0": 0.6147558993139084,
+    "1": 2.678537238561818
+  },
+  "trivial_baseline_test": {
+    "model": "DEP_DELAY > 15 rule",
+    "accuracy": 0.928,
+    "weighted_precision": 0.9286,
+    "weighted_f1": 0.9283,
+    "pos_precision": 0.7753,
+    "pos_recall": 0.7913,
+    "pos_f1": 0.7832,
+    "pct_predicted_delayed": 16.77,
+    "tp": 374334,
+    "fp": 108462,
+    "tn": 2296850,
+    "fn": 98740
+  },
+  "modes": {
+    "full": {
+      "feature_columns": {
+        "categorical": [
+          "OP_UNIQUE_CARRIER",
+          "ORIGIN",
+          "DEST",
+          "route"
+        ],
+        "numeric": [
+          "YEAR",
+          "MONTH",
+          "DAY_OF_MONTH",
+          "DAY_OF_WEEK",
+          "DISTANCE",
+          "CRS_ELAPSED_TIME",
+          "dep_hour",
+          "arr_sched_hour",
+          "is_weekend",
+          "is_holiday_season",
+          "DEP_DELAY",
+          "DEP_DEL15",
+          "TAXI_OUT"
+        ]
+      },
+      "gbt": {
+        "selected_params": {
+          "maxDepth": 8,
+          "maxIter": 100
+        },
+        "grid": [
+          {
+            "params": {
+              "maxDepth": 6,
+              "maxIter": 50
+            },
+            "val_auc_roc": 0.9654,
+            "fit_seconds": 1404.4
+          },
+          {
+            "params": {
+              "maxDepth": 6,
+              "maxIter": 100
+            },
+            "val_auc_roc": 0.9664,
+            "fit_seconds": 3034.2
+          },
+          {
+            "params": {
+              "maxDepth": 8,
+              "maxIter": 50
+            },
+            "val_auc_roc": 0.9667,
+            "fit_seconds": 1986.4
+          },
+          {
+            "params": {
+              "maxDepth": 8,
+              "maxIter": 100
+            },
+            "val_auc_roc": 0.9677,
+            "fit_seconds": 3479.6
+          }
+        ],
+        "test": {
+          "model": "GBTClassifier",
+          "auc_roc": 0.9684,
+          "auc_pr": 0.9233,
+          "at_0.5": {
+            "accuracy": 0.9294,
+            "weighted_precision": 0.9382,
+            "weighted_f1": 0.9321,
+            "pos_precision": 0.7341,
+            "pos_recall": 0.8943,
+            "pos_f1": 0.8064,
+            "pct_predicted_delayed": 20.02,
+            "tp": 423081,
+            "fp": 153218,
+            "tn": 2252094,
+            "fn": 49993
+          },
+          "val_selected_threshold": 0.77,
+          "at_val_threshold": {
+            "accuracy": 0.9516,
+            "weighted_precision": 0.9509,
+            "weighted_f1": 0.9511,
+            "pos_precision": 0.8718,
+            "pos_recall": 0.8274,
+            "pos_f1": 0.849,
+            "pct_predicted_delayed": 15.6,
+            "tp": 391445,
+            "fp": 57567,
+            "tn": 2347745,
+            "fn": 81629
+          }
+        }
+      },
+      "lr": {
+        "selected_params": {
+          "regParam": 0.0
+        },
+        "grid": [
+          {
+            "params": {
+              "regParam": 0.0
+            },
+            "val_auc_roc": 0.962,
+            "fit_seconds": 115.4
+          },
+          {
+            "params": {
+              "regParam": 0.001
+            },
+            "val_auc_roc": 0.9609,
+            "fit_seconds": 90.9
+          },
+          {
+            "params": {
+              "regParam": 0.01
+            },
+            "val_auc_roc": 0.9541,
+            "fit_seconds": 82.5
+          }
+        ],
+        "test": {
+          "model": "LogisticRegression",
+          "auc_roc": 0.9642,
+          "auc_pr": 0.9159,
+          "at_0.5": {
+            "accuracy": 0.9232,
+            "weighted_precision": 0.9349,
+            "weighted_f1": 0.9267,
+            "pos_precision": 0.7106,
+            "pos_recall": 0.8991,
+            "pos_f1": 0.7938,
+            "pct_predicted_delayed": 20.8,
+            "tp": 425362,
+            "fp": 173246,
+            "tn": 2232066,
+            "fn": 47712
+          },
+          "val_selected_threshold": 0.74,
+          "at_val_threshold": {
+            "accuracy": 0.9486,
+            "weighted_precision": 0.9482,
+            "weighted_f1": 0.9484,
+            "pos_precision": 0.8504,
+            "pos_recall": 0.8339,
+            "pos_f1": 0.8421,
+            "pct_predicted_delayed": 16.12,
+            "tp": 394516,
+            "fp": 69426,
+            "tn": 2335886,
+            "fn": 78558
+          }
+        }
+      },
+      "shap_gbt": {
+        "method": "TreeExplainer (SHAP), mean |SHAP| on log-odds scale",
+        "sample_size": 2000,
+        "ranking": {
+          "DEP_DELAY_imp": 1.142189,
+          "TAXI_OUT_imp": 0.285172,
+          "DISTANCE_imp": 0.235725,
+          "CRS_ELAPSED_TIME_imp": 0.153105,
+          "DEP_DEL15_imp": 0.12906,
+          "ORIGIN_idx": 0.066146,
+          "OP_UNIQUE_CARRIER_idx": 0.047745,
+          "DEST_idx": 0.046067,
+          "arr_sched_hour_imp": 0.037958,
+          "MONTH_imp": 0.031637,
+          "dep_hour_imp": 0.019545,
+          "YEAR_imp": 0.008614,
+          "route_idx": 0.007115,
+          "DAY_OF_MONTH_imp": 0.006173,
+          "DAY_OF_WEEK_imp": 0.003541,
+          "is_holiday_season_imp": 0.000751,
+          "is_weekend_imp": 0.000635
+        }
+      }
+    },
+    "pre_departure": {
+      "feature_columns": {
+        "categorical": [
+          "OP_UNIQUE_CARRIER",
+          "ORIGIN",
+          "DEST",
+          "route"
+        ],
+        "numeric": [
+          "YEAR",
+          "MONTH",
+          "DAY_OF_MONTH",
+          "DAY_OF_WEEK",
+          "DISTANCE",
+          "CRS_ELAPSED_TIME",
+          "dep_hour",
+          "arr_sched_hour",
+          "is_weekend",
+          "is_holiday_season"
+        ]
+      },
+      "gbt": {
+        "selected_params": {
+          "maxDepth": 6,
+          "maxIter": 100
+        },
+        "grid": [
+          {
+            "params": {
+              "maxDepth": 6,
+              "maxIter": 50
+            },
+            "val_auc_roc": 0.673,
+            "fit_seconds": 1354.0
+          },
+          {
+            "params": {
+              "maxDepth": 6,
+              "maxIter": 100
+            },
+            "val_auc_roc": 0.6735,
+            "fit_seconds": 2727.8
+          },
+          {
+            "params": {
+              "maxDepth": 8,
+              "maxIter": 50
+            },
+            "val_auc_roc": 0.6709,
+            "fit_seconds": 1477.5
+          },
+          {
+            "params": {
+              "maxDepth": 8,
+              "maxIter": 100
+            },
+            "val_auc_roc": 0.6725,
+            "fit_seconds": 3916.3
+          }
+        ],
+        "test": {
+          "model": "GBTClassifier",
+          "auc_roc": 0.6347,
+          "auc_pr": 0.2399,
+          "at_0.5": {
+            "accuracy": 0.6179,
+            "weighted_precision": 0.7738,
+            "weighted_f1": 0.6665,
+            "pos_precision": 0.2307,
+            "pos_recall": 0.5673,
+            "pos_f1": 0.328,
+            "pct_predicted_delayed": 40.42,
+            "tp": 268396,
+            "fp": 895110,
+            "tn": 1510202,
+            "fn": 204678
+          },
+          "val_selected_threshold": 0.51,
+          "at_val_threshold": {
+            "accuracy": 0.6312,
+            "weighted_precision": 0.7727,
+            "weighted_f1": 0.6772,
+            "pos_precision": 0.2336,
+            "pos_recall": 0.5453,
+            "pos_f1": 0.3271,
+            "pct_predicted_delayed": 38.37,
+            "tp": 257988,
+            "fp": 846429,
+            "tn": 1558883,
+            "fn": 215086
+          }
+        }
+      },
+      "lr": {
+        "selected_params": {
+          "regParam": 0.0
+        },
+        "grid": [
+          {
+            "params": {
+              "regParam": 0.0
+            },
+            "val_auc_roc": 0.6467,
+            "fit_seconds": 95.9
+          },
+          {
+            "params": {
+              "regParam": 0.001
+            },
+            "val_auc_roc": 0.6467,
+            "fit_seconds": 89.7
+          },
+          {
+            "params": {
+              "regParam": 0.01
+            },
+            "val_auc_roc": 0.6462,
+            "fit_seconds": 85.0
+          }
+        ],
+        "test": {
+          "model": "LogisticRegression",
+          "auc_roc": 0.6096,
+          "auc_pr": 0.2149,
+          "at_0.5": {
+            "accuracy": 0.3554,
+            "weighted_precision": 0.7872,
+            "weighted_f1": 0.3831,
+            "pos_precision": 0.1859,
+            "pos_recall": 0.8645,
+            "pos_f1": 0.306,
+            "pct_predicted_delayed": 76.44,
+            "tp": 408950,
+            "fp": 1791203,
+            "tn": 614109,
+            "fn": 64124
+          },
+          "val_selected_threshold": 0.55,
+          "at_val_threshold": {
+            "accuracy": 0.4639,
+            "weighted_precision": 0.7808,
+            "weighted_f1": 0.5191,
+            "pos_precision": 0.2006,
+            "pos_recall": 0.7575,
+            "pos_f1": 0.3172,
+            "pct_predicted_delayed": 62.07,
+            "tp": 358334,
+            "fp": 1428251,
+            "tn": 977061,
+            "fn": 114740
+          }
+        }
+      },
+      "shap_gbt": {
+        "method": "TreeExplainer (SHAP), mean |SHAP| on log-odds scale",
+        "sample_size": 2000,
+        "ranking": {
+          "dep_hour_imp": 0.157021,
+          "MONTH_imp": 0.111414,
+          "OP_UNIQUE_CARRIER_idx": 0.091343,
+          "DISTANCE_imp": 0.08032,
+          "CRS_ELAPSED_TIME_imp": 0.062314,
+          "YEAR_imp": 0.0566,
+          "arr_sched_hour_imp": 0.056289,
+          "DAY_OF_MONTH_imp": 0.047914,
+          "ORIGIN_idx": 0.045861,
+          "DAY_OF_WEEK_imp": 0.043331,
+          "DEST_idx": 0.038669,
+          "route_idx": 0.009122,
+          "is_weekend_imp": 0.006016,
+          "is_holiday_season_imp": 0.002659
+        }
+      }
+    }
+  },
+  "elapsed_seconds": 20316.8
+}

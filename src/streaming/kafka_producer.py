@@ -66,6 +66,7 @@ FEATURE_COLUMNS = [
     "DEST",
     "CRS_DEP_TIME",
     "DEP_DELAY",
+    "TAXI_OUT",
     "CRS_ARR_TIME",
     "ARR_DELAY",
     "CRS_ELAPSED_TIME",
@@ -93,6 +94,7 @@ BTS_COLUMN_MAP = {
     "Dest":               "DEST",
     "CRSDepTime":         "CRS_DEP_TIME",
     "DepDelay":           "DEP_DELAY",
+    "TaxiOut":            "TAXI_OUT",
     "CRSArrTime":         "CRS_ARR_TIME",
     "ArrDelay":           "ARR_DELAY",
     "CRSElapsedTime":     "CRS_ELAPSED_TIME",
@@ -107,7 +109,7 @@ BTS_COLUMN_MAP = {
 # Columns to cast to float where possible; rest remain strings
 NUMERIC_COLUMNS = {
     "YEAR", "MONTH", "DAY_OF_MONTH", "DAY_OF_WEEK",
-    "CRS_DEP_TIME", "DEP_DELAY", "CRS_ARR_TIME", "ARR_DELAY",
+    "CRS_DEP_TIME", "DEP_DELAY", "TAXI_OUT", "CRS_ARR_TIME", "ARR_DELAY",
     "CRS_ELAPSED_TIME", "DISTANCE", "CARRIER_DELAY", "WEATHER_DELAY",
     "NAS_DELAY", "SECURITY_DELAY", "LATE_AIRCRAFT_DELAY",
 }
@@ -198,9 +200,10 @@ def row_to_dict(row: Dict[str, str]) -> Optional[Dict]:
         else:
             record[col] = raw_val.strip() if raw_val.strip() else None
 
-    # Add a producer-side timestamp for latency measurement
-    record["producer_ts"] = time.time()
-
+    # producer_ts is stamped in produce_records() at publish time, not here:
+    # with reservoir sampling a row is parsed long before it is sent, and a
+    # parse-time stamp would count time spent waiting in the reservoir as
+    # end-to-end latency.
     return record
 
 
@@ -297,6 +300,7 @@ def produce_records(
 
         # Use ORIGIN as partition key so the same origin always goes to same partition
         key = record.get("ORIGIN") or "UNKNOWN"
+        record["producer_ts"] = time.time()
 
         try:
             future = producer.send(topic, key=key, value=record)

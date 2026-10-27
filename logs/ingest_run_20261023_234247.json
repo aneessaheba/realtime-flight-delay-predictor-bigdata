@@ -1,0 +1,44 @@
+{
+  "run_timestamp_utc": "20261023_234247",
+  "input_path": "/opt/spark-apps/data/raw_2024",
+  "input_files": [
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_1.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_10.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_11.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_12.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_2.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_3.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_4.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_5.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_6.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_7.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_8.csv",
+    "/opt/spark-apps/data/raw_2024/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2024_9.csv"
+  ],
+  "input_file_count": 12,
+  "years_requested": [
+    2024
+  ],
+  "raw_row_count": 7079061,
+  "hdfs_output_path": "hdfs://hdfs-namenode:9000/holdout_2024/data/flights",
+  "elapsed_seconds": 642.95,
+  "rows_before_arr_delay_filter": 7079061,
+  "rows_dropped_null_arr_delay": 113814,
+  "rows_after_arr_delay_filter": 6965247,
+  "cleaned_row_count": 6965247,
+  "num_output_partitions": 14,
+  "years_months_covered": [
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2024-08",
+    "2024-09",
+    "2024-10",
+    "2024-11",
+    "2024-12"
+  ]
+}
