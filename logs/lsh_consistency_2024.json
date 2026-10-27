@@ -1,0 +1,28 @@
+{
+  "predictions": "hdfs://hdfs-namenode:9000/output/streaming_2024_t0",
+  "sample_size": 5000,
+  "lsh_threshold": 0.5,
+  "lsh_num_perm": 128,
+  "predicted_delayed_share": 0.238,
+  "baseline_random_pairs": {
+    "analytic_2p_1_minus_p": 0.3627,
+    "empirical": 0.3621,
+    "pairs": 200000
+  },
+  "route_tokens": {
+    "tokens": "carrier, origin, dest",
+    "candidate_pairs": 103007,
+    "verified_pairs_jaccard_ge_threshold": 96808,
+    "false_candidate_share": 0.0602,
+    "disagreeing_pairs": 33153,
+    "disagreement_rate": 0.3425
+  },
+  "route_and_departure_delay_band": {
+    "tokens": "carrier, origin, dest, departure-delay band",
+    "candidate_pairs": 141141,
+    "verified_pairs_jaccard_ge_threshold": 64907,
+    "false_candidate_share": 0.5401,
+    "disagreeing_pairs": 5653,
+    "disagreement_rate": 0.0871
+  }
+}
