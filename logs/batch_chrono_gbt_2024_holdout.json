@@ -1,0 +1,18 @@
+{
+  "model": "GBTClassifier",
+  "mode": "batch",
+  "auc_roc": 0.9683,
+  "auc_pr": 0.9356,
+  "f1": 0.9264,
+  "precision": 0.9317,
+  "weighted_recall": 0.9241,
+  "accuracy": 0.9241,
+  "positive_class_recall": 0.902,
+  "tp": 1265803,
+  "tn": 5170761,
+  "fp": 391104,
+  "fn": 137579,
+  "inference_time_s": 38.528,
+  "total_records": 6965247,
+  "throughput_records_per_s": 180782.3
+}

@@ -13,6 +13,9 @@ Usage:
     python src/evaluation/dp_repeat.py \
         --metrics-json logs/train_full_corpus_metrics_20260712_004845.json \
         --model GBTClassifier --draws 1000 --output logs/dp_repeat.json
+    python src/evaluation/dp_repeat.py \
+        --metrics-json logs/train_chronological_full_corpus.json \
+        --model full/gbt/at_val_threshold --draws 1000 --output logs/dp_repeat_chronological.json
 """
 
 import argparse
@@ -28,9 +31,24 @@ from benchmark import DP_EPSILON, DP_SENSITIVITY, dp_metric  # noqa: E402
 DP_FIELDS = ["auc_roc", "auc_pr", "f1", "precision", "accuracy", "positive_class_recall"]
 
 
+CHRONO_FIELDS = ["accuracy", "weighted_precision", "weighted_f1", "pos_precision", "pos_recall", "pos_f1"]
+
+
 def load_true_metrics(path: str, model: str) -> dict:
+    """
+    Read the metrics to release. Supports train_model.py's --metrics-json
+    ("metrics" list, model = "GBTClassifier") and train_chronological.py's
+    output (model = "<mode>/<gbt|lr>/<at_0.5|at_val_threshold>", e.g.
+    "full/gbt/at_val_threshold").
+    """
     with open(path, encoding="utf-8") as fh:
         payload = json.load(fh)
+    if "modes" in payload:
+        mode, key, point = model.split("/")
+        test = payload["modes"][mode][key]["test"]
+        values = {"auc_roc": test["auc_roc"], "auc_pr": test["auc_pr"]}
+        values.update({k: test[point][k] for k in CHRONO_FIELDS})
+        return values
     for entry in payload["metrics"]:
         if entry["model"] == model:
             return {k: entry[k] for k in DP_FIELDS if isinstance(entry.get(k), float)}

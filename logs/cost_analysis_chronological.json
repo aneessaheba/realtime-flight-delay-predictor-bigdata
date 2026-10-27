@@ -1,0 +1,133 @@
+{
+  "source": "logs/train_chronological_full_corpus.json",
+  "test_partition": "Aug-Dec 2023 (chronological split)",
+  "cost_model": "total = c_FN * FN + c_FP * FP; reported in false-alarm units (c_FP = 1, c_FN = r)",
+  "operating_points": {
+    "GBT @0.5": {
+      "fn": 49993,
+      "fp": 153218
+    },
+    "GBT @0.77 (val-selected)": {
+      "fn": 81629,
+      "fp": 57567
+    },
+    "LR @0.5": {
+      "fn": 47712,
+      "fp": 173246
+    },
+    "LR @0.74 (val-selected)": {
+      "fn": 78558,
+      "fp": 69426
+    },
+    "DEP_DELAY > 15 rule": {
+      "fn": 98740,
+      "fp": 108462
+    }
+  },
+  "pairwise_break_even": [
+    {
+      "a": "GBT @0.5",
+      "b": "GBT @0.77 (val-selected)",
+      "break_even_ratio": 3.023,
+      "summary": "GBT @0.5 is cheaper when c_FN/c_FP > 3.02; GBT @0.77 (val-selected) is cheaper below that"
+    },
+    {
+      "a": "GBT @0.5",
+      "b": "LR @0.5",
+      "break_even_ratio": 8.78,
+      "summary": "LR @0.5 is cheaper when c_FN/c_FP > 8.78; GBT @0.5 is cheaper below that"
+    },
+    {
+      "a": "GBT @0.5",
+      "b": "LR @0.74 (val-selected)",
+      "break_even_ratio": 2.933,
+      "summary": "GBT @0.5 is cheaper when c_FN/c_FP > 2.93; LR @0.74 (val-selected) is cheaper below that"
+    },
+    {
+      "a": "GBT @0.5",
+      "b": "DEP_DELAY > 15 rule",
+      "break_even_ratio": 0.918,
+      "summary": "GBT @0.5 is cheaper when c_FN/c_FP > 0.92; DEP_DELAY > 15 rule is cheaper below that"
+    },
+    {
+      "a": "GBT @0.77 (val-selected)",
+      "b": "LR @0.5",
+      "break_even_ratio": 3.411,
+      "summary": "LR @0.5 is cheaper when c_FN/c_FP > 3.41; GBT @0.77 (val-selected) is cheaper below that"
+    },
+    {
+      "a": "GBT @0.77 (val-selected)",
+      "b": "LR @0.74 (val-selected)",
+      "break_even_ratio": 3.862,
+      "summary": "LR @0.74 (val-selected) is cheaper when c_FN/c_FP > 3.86; GBT @0.77 (val-selected) is cheaper below that"
+    },
+    {
+      "a": "GBT @0.77 (val-selected)",
+      "b": "DEP_DELAY > 15 rule",
+      "break_even_ratio": null,
+      "summary": "GBT @0.77 (val-selected) has no more FN and no more FP: cheaper at every ratio"
+    },
+    {
+      "a": "LR @0.5",
+      "b": "LR @0.74 (val-selected)",
+      "break_even_ratio": 3.366,
+      "summary": "LR @0.5 is cheaper when c_FN/c_FP > 3.37; LR @0.74 (val-selected) is cheaper below that"
+    },
+    {
+      "a": "LR @0.5",
+      "b": "DEP_DELAY > 15 rule",
+      "break_even_ratio": 1.27,
+      "summary": "LR @0.5 is cheaper when c_FN/c_FP > 1.27; DEP_DELAY > 15 rule is cheaper below that"
+    },
+    {
+      "a": "LR @0.74 (val-selected)",
+      "b": "DEP_DELAY > 15 rule",
+      "break_even_ratio": null,
+      "summary": "LR @0.74 (val-selected) has no more FN and no more FP: cheaper at every ratio"
+    }
+  ],
+  "total_cost_by_ratio_sorted": {
+    "r=1": {
+      "GBT @0.77 (val-selected)": 139196,
+      "LR @0.74 (val-selected)": 147984,
+      "GBT @0.5": 203211,
+      "DEP_DELAY > 15 rule": 207202,
+      "LR @0.5": 220958
+    },
+    "r=2": {
+      "GBT @0.77 (val-selected)": 220825,
+      "LR @0.74 (val-selected)": 226542,
+      "GBT @0.5": 253204,
+      "LR @0.5": 268670,
+      "DEP_DELAY > 15 rule": 305942
+    },
+    "r=3": {
+      "GBT @0.77 (val-selected)": 302454,
+      "GBT @0.5": 303197,
+      "LR @0.74 (val-selected)": 305100,
+      "LR @0.5": 316382,
+      "DEP_DELAY > 15 rule": 404682
+    },
+    "r=5": {
+      "GBT @0.5": 403183,
+      "LR @0.5": 411806,
+      "LR @0.74 (val-selected)": 462216,
+      "GBT @0.77 (val-selected)": 465712,
+      "DEP_DELAY > 15 rule": 602162
+    },
+    "r=10": {
+      "LR @0.5": 650366,
+      "GBT @0.5": 653148,
+      "LR @0.74 (val-selected)": 855006,
+      "GBT @0.77 (val-selected)": 873857,
+      "DEP_DELAY > 15 rule": 1095862
+    }
+  },
+  "cheapest_by_ratio": {
+    "r=1": "GBT @0.77 (val-selected)",
+    "r=2": "GBT @0.77 (val-selected)",
+    "r=3": "GBT @0.77 (val-selected)",
+    "r=5": "GBT @0.5",
+    "r=10": "LR @0.5"
+  }
+}

@@ -1,0 +1,294 @@
+{
+  "input": "hdfs://hdfs-namenode:9000/full_corpus_v2/data/flights",
+  "total_flights": 19153634,
+  "class_counts": {
+    "on_time": 15509573,
+    "delayed": 3644061
+  },
+  "delayed_pct": 19.03,
+  "by_month": [
+    {
+      "MONTH": 1.0,
+      "flights": 1387930,
+      "delay_rate_pct": 17.31
+    },
+    {
+      "MONTH": 2.0,
+      "flights": 1279281,
+      "delay_rate_pct": 17.42
+    },
+    {
+      "MONTH": 3.0,
+      "flights": 1564208,
+      "delay_rate_pct": 18.52
+    },
+    {
+      "MONTH": 4.0,
+      "flights": 1539791,
+      "delay_rate_pct": 18.46
+    },
+    {
+      "MONTH": 5.0,
+      "flights": 1633381,
+      "delay_rate_pct": 17.06
+    },
+    {
+      "MONTH": 6.0,
+      "flights": 1656024,
+      "delay_rate_pct": 24.27
+    },
+    {
+      "MONTH": 7.0,
+      "flights": 1739488,
+      "delay_rate_pct": 25.02
+    },
+    {
+      "MONTH": 8.0,
+      "flights": 1725708,
+      "delay_rate_pct": 21.57
+    },
+    {
+      "MONTH": 9.0,
+      "flights": 1638992,
+      "delay_rate_pct": 15.81
+    },
+    {
+      "MONTH": 10.0,
+      "flights": 1714479,
+      "delay_rate_pct": 15.84
+    },
+    {
+      "MONTH": 11.0,
+      "flights": 1645013,
+      "delay_rate_pct": 15.16
+    },
+    {
+      "MONTH": 12.0,
+      "flights": 1629339,
+      "delay_rate_pct": 20.79
+    }
+  ],
+  "by_day_of_week": [
+    {
+      "DAY_OF_WEEK": 1.0,
+      "flights": 2836984,
+      "delay_rate_pct": 19.22
+    },
+    {
+      "DAY_OF_WEEK": 2.0,
+      "flights": 2637883,
+      "delay_rate_pct": 16.27
+    },
+    {
+      "DAY_OF_WEEK": 3.0,
+      "flights": 2676728,
+      "delay_rate_pct": 17.07
+    },
+    {
+      "DAY_OF_WEEK": 4.0,
+      "flights": 2837351,
+      "delay_rate_pct": 19.8
+    },
+    {
+      "DAY_OF_WEEK": 5.0,
+      "flights": 2860420,
+      "delay_rate_pct": 20.97
+    },
+    {
+      "DAY_OF_WEEK": 6.0,
+      "flights": 2503528,
+      "delay_rate_pct": 18.83
+    },
+    {
+      "DAY_OF_WEEK": 7.0,
+      "flights": 2800740,
+      "delay_rate_pct": 20.7
+    }
+  ],
+  "by_carrier": [
+    {
+      "OP_UNIQUE_CARRIER": "B6",
+      "flights": 728358,
+      "delay_rate_pct": 29.59
+    },
+    {
+      "OP_UNIQUE_CARRIER": "G4",
+      "flights": 338693,
+      "delay_rate_pct": 28.82
+    },
+    {
+      "OP_UNIQUE_CARRIER": "F9",
+      "flights": 459237,
+      "delay_rate_pct": 28.07
+    },
+    {
+      "OP_UNIQUE_CARRIER": "NK",
+      "flights": 669156,
+      "delay_rate_pct": 24.54
+    },
+    {
+      "OP_UNIQUE_CARRIER": "WN",
+      "flights": 3721863,
+      "delay_rate_pct": 21.9
+    },
+    {
+      "OP_UNIQUE_CARRIER": "AA",
+      "flights": 2491826,
+      "delay_rate_pct": 20.59
+    },
+    {
+      "OP_UNIQUE_CARRIER": "YV",
+      "flights": 265185,
+      "delay_rate_pct": 19.44
+    },
+    {
+      "OP_UNIQUE_CARRIER": "UA",
+      "flights": 1772675,
+      "delay_rate_pct": 18.68
+    },
+    {
+      "OP_UNIQUE_CARRIER": "HA",
+      "flights": 213181,
+      "delay_rate_pct": 18.59
+    },
+    {
+      "OP_UNIQUE_CARRIER": "AS",
+      "flights": 649440,
+      "delay_rate_pct": 18.3
+    },
+    {
+      "OP_UNIQUE_CARRIER": "MQ",
+      "flights": 715978,
+      "delay_rate_pct": 16.33
+    },
+    {
+      "OP_UNIQUE_CARRIER": "OH",
+      "flights": 618160,
+      "delay_rate_pct": 16.14
+    },
+    {
+      "OP_UNIQUE_CARRIER": "OO",
+      "flights": 2120981,
+      "delay_rate_pct": 15.68
+    },
+    {
+      "OP_UNIQUE_CARRIER": "YX",
+      "flights": 913803,
+      "delay_rate_pct": 15.01
+    },
+    {
+      "OP_UNIQUE_CARRIER": "DL",
+      "flights": 2593171,
+      "delay_rate_pct": 14.3
+    },
+    {
+      "OP_UNIQUE_CARRIER": "QX",
+      "flights": 196481,
+      "delay_rate_pct": 13.9
+    },
+    {
+      "OP_UNIQUE_CARRIER": "9E",
+      "flights": 685446,
+      "delay_rate_pct": 12.23
+    }
+  ],
+  "by_year": [
+    {
+      "YEAR": 2021,
+      "flights": 5878219,
+      "delay_rate_pct": 16.56
+    },
+    {
+      "YEAR": 2022,
+      "flights": 6532012,
+      "delay_rate_pct": 20.37
+    },
+    {
+      "YEAR": 2023,
+      "flights": 6743403,
+      "delay_rate_pct": 19.87
+    }
+  ],
+  "correlation": {
+    "DAY_OF_WEEK": {
+      "DAY_OF_WEEK": 1.0,
+      "CRS_DEP_TIME": 0.003,
+      "DEP_DELAY": 0.019,
+      "TAXI_OUT": -0.0018,
+      "CRS_ELAPSED_TIME": 0.0106,
+      "DISTANCE": 0.0117,
+      "MONTH": 0.0003,
+      "label": 0.0244
+    },
+    "CRS_DEP_TIME": {
+      "DAY_OF_WEEK": 0.003,
+      "CRS_DEP_TIME": 1.0,
+      "DEP_DELAY": 0.0962,
+      "TAXI_OUT": 0.0038,
+      "CRS_ELAPSED_TIME": -0.0137,
+      "DISTANCE": -0.004,
+      "MONTH": 0.0029,
+      "label": 0.1484
+    },
+    "DEP_DELAY": {
+      "DAY_OF_WEEK": 0.019,
+      "CRS_DEP_TIME": 0.0962,
+      "DEP_DELAY": 1.0,
+      "TAXI_OUT": 0.0402,
+      "CRS_ELAPSED_TIME": 0.0251,
+      "DISTANCE": 0.0248,
+      "MONTH": 0.0029,
+      "label": 0.5094
+    },
+    "TAXI_OUT": {
+      "DAY_OF_WEEK": -0.0018,
+      "CRS_DEP_TIME": 0.0038,
+      "DEP_DELAY": 0.0402,
+      "TAXI_OUT": 1.0,
+      "CRS_ELAPSED_TIME": 0.0856,
+      "DISTANCE": 0.0484,
+      "MONTH": -0.0039,
+      "label": 0.231
+    },
+    "CRS_ELAPSED_TIME": {
+      "DAY_OF_WEEK": 0.0106,
+      "CRS_DEP_TIME": -0.0137,
+      "DEP_DELAY": 0.0251,
+      "TAXI_OUT": 0.0856,
+      "CRS_ELAPSED_TIME": 1.0,
+      "DISTANCE": 0.9832,
+      "MONTH": -0.0009,
+      "label": 0.025
+    },
+    "DISTANCE": {
+      "DAY_OF_WEEK": 0.0117,
+      "CRS_DEP_TIME": -0.004,
+      "DEP_DELAY": 0.0248,
+      "TAXI_OUT": 0.0484,
+      "CRS_ELAPSED_TIME": 0.9832,
+      "DISTANCE": 1.0,
+      "MONTH": 0.0027,
+      "label": 0.0299
+    },
+    "MONTH": {
+      "DAY_OF_WEEK": 0.0003,
+      "CRS_DEP_TIME": 0.0029,
+      "DEP_DELAY": 0.0029,
+      "TAXI_OUT": -0.0039,
+      "CRS_ELAPSED_TIME": -0.0009,
+      "DISTANCE": 0.0027,
+      "MONTH": 1.0,
+      "label": -0.0022
+    },
+    "label": {
+      "DAY_OF_WEEK": 0.0244,
+      "CRS_DEP_TIME": 0.1484,
+      "DEP_DELAY": 0.5094,
+      "TAXI_OUT": 0.231,
+      "CRS_ELAPSED_TIME": 0.025,
+      "DISTANCE": 0.0299,
+      "MONTH": -0.0022,
+      "label": 1.0
+    }
+  }
+}
