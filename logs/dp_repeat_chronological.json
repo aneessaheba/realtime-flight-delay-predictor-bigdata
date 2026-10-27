@@ -1,0 +1,68 @@
+{
+  "source": "logs/train_chronological_full_corpus.json",
+  "model": "full/gbt/at_val_threshold",
+  "mechanism": "Laplace",
+  "epsilon_per_metric": 1.0,
+  "metrics_released": 8,
+  "total_epsilon_sequential_composition": 8.0,
+  "sensitivity": 0.01,
+  "laplace_scale_b": 0.01,
+  "analytic_expected_abs_dev": 0.01,
+  "draws": 1000,
+  "seed": 42,
+  "per_metric": {
+    "auc_roc": {
+      "true": 0.9684,
+      "mean_abs_dev": 0.00999,
+      "p95_abs_dev": 0.03,
+      "max_abs_dev": 0.0805
+    },
+    "auc_pr": {
+      "true": 0.9233,
+      "mean_abs_dev": 0.00971,
+      "p95_abs_dev": 0.02991,
+      "max_abs_dev": 0.1007
+    },
+    "accuracy": {
+      "true": 0.9516,
+      "mean_abs_dev": 0.01043,
+      "p95_abs_dev": 0.03321,
+      "max_abs_dev": 0.0635
+    },
+    "weighted_precision": {
+      "true": 0.9509,
+      "mean_abs_dev": 0.01033,
+      "p95_abs_dev": 0.03121,
+      "max_abs_dev": 0.054
+    },
+    "weighted_f1": {
+      "true": 0.9511,
+      "mean_abs_dev": 0.01056,
+      "p95_abs_dev": 0.03112,
+      "max_abs_dev": 0.0638
+    },
+    "pos_precision": {
+      "true": 0.8718,
+      "mean_abs_dev": 0.01015,
+      "p95_abs_dev": 0.0311,
+      "max_abs_dev": 0.0795
+    },
+    "pos_recall": {
+      "true": 0.8274,
+      "mean_abs_dev": 0.00965,
+      "p95_abs_dev": 0.0306,
+      "max_abs_dev": 0.0637
+    },
+    "pos_f1": {
+      "true": 0.849,
+      "mean_abs_dev": 0.00957,
+      "p95_abs_dev": 0.02611,
+      "max_abs_dev": 0.0707
+    }
+  },
+  "max_over_metrics_per_release": {
+    "mean": 0.02733,
+    "median": 0.0249,
+    "p95": 0.04891
+  }
+}
