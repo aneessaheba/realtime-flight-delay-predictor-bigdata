@@ -22,7 +22,7 @@ Usage (inside the spark-master container):
         --predictions hdfs://hdfs-namenode:9000/output/streaming_2024 \
         --batch-log /tmp/streaming_batches.jsonl \
         --model-path hdfs://hdfs-namenode:9000/models_chrono/full/gbt_pipeline \
-        --threshold 0.79 --output /tmp/streaming_eval.json
+        --threshold 0.77 --output /tmp/streaming_eval.json
 """
 
 import argparse
