@@ -86,8 +86,9 @@ def build_spark_session(app_name: str = "FlightDelay_PreDepartureComparison") ->
 
 
 def parse_hhmm_to_hour(col_name: str):
-    padded = F.lpad(F.col(col_name).cast("string"), 4, "0")
-    return F.substring(padded, 1, 2).cast("int")
+    # HHMM -> hour arithmetically. The previous string version (lpad to 4 +
+    # first two chars) broke on double-typed input: 930.0 -> "930." -> 93.
+    return F.floor(F.col(col_name).cast("double") / 100).cast("int")
 
 
 def add_time_features(df):
