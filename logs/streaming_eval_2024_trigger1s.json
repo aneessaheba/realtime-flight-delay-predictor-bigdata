@@ -1,0 +1,104 @@
+{
+  "records_scored": 248455,
+  "records_with_outcome": 244452,
+  "delayed_rate_actual": 0.2013,
+  "accuracy": {
+    "auc_roc": 0.9681,
+    "auc_pr": 0.9358,
+    "at_0.5": {
+      "accuracy": 0.9244,
+      "weighted_precision": 0.9322,
+      "weighted_f1": 0.9267,
+      "pos_precision": 0.7641,
+      "pos_recall": 0.9036,
+      "pos_f1": 0.828,
+      "pct_predicted_delayed": 23.81,
+      "tp": 44470,
+      "fp": 13732,
+      "tn": 181507,
+      "fn": 4743
+    },
+    "threshold": 0.77,
+    "at_threshold": {
+      "accuracy": 0.9472,
+      "weighted_precision": 0.9465,
+      "weighted_f1": 0.9467,
+      "pos_precision": 0.8874,
+      "pos_recall": 0.8448,
+      "pos_f1": 0.8656,
+      "pct_predicted_delayed": 19.17,
+      "tp": 41576,
+      "fp": 5278,
+      "tn": 189961,
+      "fn": 7637
+    }
+  },
+  "batch_streaming_parity": {
+    "compared": 244452,
+    "max_abs_prob_diff": 0.0,
+    "prediction_mismatches": 0
+  },
+  "latency": {
+    "definition": "write_done_ts(batch) - producer_ts(record): Kafka publish -> prediction written to HDFS",
+    "end_to_end_ms": {
+      "p50": 2270.0,
+      "p90": 3662.4,
+      "p95": 4379.2,
+      "p99": 8493.4,
+      "p99.9": 11064.6,
+      "mean": 2500.5,
+      "max": 11664.8,
+      "n": 244452
+    },
+    "queueing_ms_publish_to_batch_start": {
+      "p50": 1348.9,
+      "p90": 2423.3,
+      "p95": 2937.7,
+      "p99": 6620.9,
+      "p99.9": 9417.3,
+      "mean": 1521.1,
+      "max": 10017.5,
+      "n": 244452
+    },
+    "batch_processing_ms_start_to_write_done": {
+      "p50": 985.5,
+      "p90": 1597.3,
+      "p95": 2112.6,
+      "p99": 3252.5,
+      "p99.9": 7347.1,
+      "mean": 1161.1,
+      "max": 7747.1,
+      "n": 396
+    },
+    "tail_above_p99": {
+      "threshold_ms": 8493.4,
+      "events": 2445,
+      "share_in_first_3_batches": 0.5542,
+      "batches_containing_tail": 4,
+      "first_batch_rank": 0
+    },
+    "first_3_batches": [
+      {
+        "batch_rank": 0,
+        "events": 69,
+        "max_ms": 9500.8
+      },
+      {
+        "batch_rank": 1,
+        "events": 3764,
+        "max_ms": 11664.8
+      },
+      {
+        "batch_rank": 2,
+        "events": 1106,
+        "max_ms": 4259.1
+      }
+    ],
+    "batches": 396
+  },
+  "bloom_final": {
+    "seen": 250000,
+    "dropped_within_batch": 0,
+    "dropped_seen_before": 1545
+  }
+}
